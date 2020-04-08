@@ -4,61 +4,61 @@ function patternForm(data) {
         "data": data,
         "view": "bootstrap-edit-horizontal",
         "schema": {
-            "title":"{t}Description du modèle{/t}",
+            "title":"Description du modèle",
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "tableName": {
-                        "title": "{t}Nom de la table{/t}",
+                        "title": "Nom de la table",
                         "type": "string",
                         "required": true
                     },
                     "tableAlias": {
-                        "title": "{t}Alias de la table (si elle dépend de plusieurs parents){/t}",
+                        "title": "Alias de la table (si elle dépend de plusieurs parents)",
                         "type": "string"
                     },
                     "technicalKey": {
-                        "title": "{t}Clé primaire{/t}",
+                        "title": "Clé primaire",
                         "type": "string"
                     },
                     "isEmpty": {
-                        "title":"{t}Table fournie vide (table de paramètres renseignée par les valeurs  fournies dans les autres enregistrements) ?{/t}",
+                        "title":"Table fournie vide (table de paramètres renseignée par les valeurs  fournies dans les autres enregistrements) ?",
                         "type": "boolean",
                         "default" : false
                     },
                     "businessKey": {
-                        "title": "{t}Clé métier{/t}",
+                        "title": "Clé métier",
                         "type": "string",
                     },
                     "parentKey": {
-                        "title": "{t}Nom de la clé étrangère (table parente){/t}",
+                        "title": "Nom de la clé étrangère (table parente)",
                         "type": "string"
                     },
                     "istable11": {
-                        "title": "{t}Relation de type 1-1 avec le parent (clé partagée){/t}",
+                        "title": "Relation de type 1-1 avec le parent (clé partagée)",
                         "type": "boolean",
                         "default": false
                     },
                     "booleanFields": {
-                        "title": "{t}Liste des champs de type booléen{/t}",
+                        "title": "Liste des champs de type booléen",
                         "type": "array",
                         "items": {
                             "type": "string"
                         }
                     },
                     "children": {
-                        "title": "{t}Liste des alias des tables liées{/t}",
+                        "title": "Liste des alias des tables liées",
                         "type": "array",
                         "items" : {
                             "type": "object",
                             "properties": {
                                 "aliasName": {
-                                    "title":"{t}Alias de la table{/t}",
+                                    "title":"Alias de la table",
                                     "type":"string"
                                 },
                                 "isStrict": {
-                                    "title":"{t}Relation stricte (les enregistrements enfants sont totalement dépendants de l'enregistrement courant) ?{/t}",
+                                    "title":"Relation stricte (les enregistrements enfants sont totalement dépendants de l'enregistrement courant) ?",
                                     "type":"boolean",
                                     "default":true
                                 }
@@ -66,24 +66,24 @@ function patternForm(data) {
                         }
                     },
                     "parameters": {
-                        "title":"{t}Liste des tables de paramètres associées{/t}",
+                        "title":"Liste des tables de paramètres associées",
                         "type":"array",
                         "items": {
                             "type":"object",
                             "properties": {
                                 "aliasName": {
-                                    "title": "{t}Alias de la table{/t}",
+                                    "title": "Alias de la table",
                                     "type": "string"
                                 },
                                 "fieldName":{
-                                    "title":"{t}Nom de la colonne dans la table courante{/t}",
+                                    "title":"Nom de la colonne dans la table courante",
                                     "type":"string"
                                 }
                             }
                         }
                     },
                     "istablenn":{
-                        "title": "{t}Table de type n-n{/t}",
+                        "title": "Table de type n-n",
                         "type":"boolean",
                         "default":false
                     },
@@ -91,11 +91,11 @@ function patternForm(data) {
                         "type":"object",
                         "properties": {
                             "secondaryParentKey": {
-                                "title": "{t}Nom de la seconde clé étrangère{/t}",
+                                "title": "Nom de la seconde clé étrangère",
                                 "type": "string"
                             },
                             "tableAlias": {
-                                "title": "{t}Alias de la seconde table{/t}",
+                                "title": "Alias de la seconde table",
                                 "type": "string"
                             }
                         },
