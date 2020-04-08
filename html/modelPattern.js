@@ -47,6 +47,33 @@ function patternForm(data) {
                             "type": "string"
                         }
                     },
+                    "binaryFields": {
+                        "title": "Liste des champs binaires",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "fields": {
+                        "title": "Liste des colonnes de la table",
+                        "type": "array",
+                        "items": {
+                            "type":"object",
+                            "properties": {
+                                "fieldName":{
+                                    "title":"Nom de la colonne",
+                                    "type":"string"
+                                },
+                                "fieldType":{
+                                    "title":"Type du champ",
+                                    "type":"select",
+                                    "enum":["string","numeric","boolean", "binary"],
+                                    "required":true,
+                                    "default":"string"
+                                }
+                            }
+                        }
+                    },
                     "children": {
                         "title": "Liste des alias des tables liées",
                         "type": "array",

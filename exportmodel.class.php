@@ -1,58 +1,15 @@
 <?php
 class ExportException extends Exception
 { };
-/**
- * ORM of the table export_model
- */
-class ExportModel extends ObjetBDD
-{
-    /**
-     * Class constructor.
-     */
-    public function __construct($bdd, $param = array())
-    {
-        $this->table = "export_model";
-        $this->colonnes = array(
-            "export_model_id" => array("type" => 1, "key" => 1, "requis" => 1, "defaultValue" => 0),
-            "export_model_name" => array("type" => 0, "requis" => 1),
-            "pattern" => array("type" => 0),
-            "target" => array("type" => 0)
-        );
 
-        parent::__construct($bdd, $param);
-    }
-    /**
-     * Get a model from his name
-     *
-     * @param string $name
-     * @return array
-     */
-    function getModelFromName(string $name): ?array
-    {
-        $sql = "select export_model_id, export_model_name, pattern, target from export_model
-                where export_model_name = :name";
-        return $this->lireParamAsPrepared($sql, array("name" => $name));
-    }
-    /**
-     * Get the list of models of export associated to a target
-     *
-     * @param string $target
-     * @return array|null
-     */
-    function getListFromTarget(string $target): ?array
-    {
-        $sql = "select export_model_id, export_model_name, target
-                from export_model
-                where target = :target";
-        return $this->getListeParamAsPrepared($sql, array("target" => $target));
-    }
-}
+
 class ExportModelProcessing
 {
     private $model = array();
     private $bdd;
     private $lastResultExec;
     public $modeDebug = false;
+    private $getFields = "select ";
     /**
      * Constructor
      *
@@ -106,9 +63,44 @@ class ExportModelProcessing
             if (strlen($m["tableAlias"]) == 0) {
                 $m["tableAlias"] = $m["tableName"];
             }
+            /**
+             * get the list of columns, if not defined
+             */
+            if (count($m["fields"] == 0)) {
+
+            }
+
             $this->model[$m["tableAlias"]] = $m;
         }
     }
+    /**
+     * Get the list of columns of the table
+     *
+     * @param string $tablename
+     * @return array|null
+     */
+    function getFieldsFromTable(string $tablename) : ?array {
+       $schematable = explode(".", $tablename);
+       $schema = "";
+       $hasSchema = false;
+       if (count($schematable) == 2) {
+           $schema = $schematable[0];
+           $tablename = $schematable[1];
+           $hasSchema = true;
+       }
+       $select = 'SELECT  schemaname, pg_tables.tablename,
+           attnum,  pg_attribute.attname AS field,
+            format_type(pg_attribute.atttypid,NULL) AS "type"
+            from pg_tables 
+            join pg_class on (relname = tablename)
+            JOIN pg_attribute
+       ON pg_class.oid = pg_attribute.attrelid
+       AND pg_attribute.attnum > 0
+       AND   pg_attribute.atttypid <> 0::OID
+       where tablename = 
+             order by attnum';
+    }
+
     /**
      * Get the list of the tables witch are not children
      *
