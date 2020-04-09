@@ -13,6 +13,8 @@ class ExportModelProcessing
   private $stmt;
   public $isWeb = true;
   public $structure = array();
+  public $quote = '"';
+  public $binaryFolder = "binary";
   /**
    * Constructor
    *
@@ -56,12 +58,11 @@ class ExportModelProcessing
   /**
    * Set the used model
    *
-   * @param string $model: JSON field contents the description of the tables
+   * @param array $model: JSON field contents the description of the tables
    * @return void
    */
-  function initModel(string $model)
+  function initModel(array $model)
   {
-    $model = json_decode($model, true);
     /**
      * Generate the model with tableName as identifier
      */
@@ -77,13 +78,27 @@ class ExportModelProcessing
   }
 
   /**
+   * Load the structure of the database
+   *
+   * @param array $structure
+   * @return void
+   */
+  function initStructure(array $structure)
+  {
+    $this->structure = $structure;
+  }
+
+  /**
    * Generate the structure of database for all tables in the model
    *
    * @param array $model
    * @return array
    */
-  function generateStructure(array $model): array
+  function generateStructure(array $model = array()): array
   {
+    if (count($model) == 0) {
+      $model = $this->model;
+    }
     $this->structure = array();
     foreach ($model as $table) {
       $this->structure[$table["tableName"]] = $this->getFieldsFromTable($table["tableName"]);
@@ -158,6 +173,41 @@ class ExportModelProcessing
     return $list;
   }
   /**
+   * Prepare the list of columns for sql clause
+   *
+   * @param string $tableName
+   * @return string
+   */
+  function generateListColumns(string $tableName): string
+  {
+    $cols = "";
+    $comma = "";
+    foreach ($this->structure[$tableName] as $col) {
+      if ($col["type"] != "bytea") {
+        $cols .= $comma . $this->quote . $col["field"] . $this->quote;
+        $comma = ",";
+      }
+    }
+    return $cols;
+  }
+  /**
+   * Get the list of binary fields for a table
+   *
+   * @param string $tableName
+   * @return array
+   */
+  function getBinaryFields(string $tableName): array
+  {
+    $fields = array();
+    foreach ($this->structure[$tableName] as $col) {
+      if ($col["type"] == "bytea") {
+        $fields[] = $col["field"];
+      }
+    }
+    return $fields;
+  }
+
+  /**
    * Get the content of a table
    *
    * @param string $tableName: alias of the table
@@ -169,16 +219,17 @@ class ExportModelProcessing
   {
     $model = $this->model[$tableAlias];
     if (count($model) == 0) {
-      throw new ExportException(sprintf(_("L'alias %s n'a pas été décrit dans le modèle"), $tableAlias));
+      throw new ExportException("The alias $tableAlias was not described in the model");
     }
     $tableName = $model["tableName"];
-    $quote = '"';
-    $content  = array();
+
+    $content = array();
     $args = array();
     if (!$model["isEmpty"] || count($keys) > 0) {
-      $sql = "select * from $quote$tableName$quote";
+      $cols = $this->generateListColumns($model["tableName"]);
+      $sql = "select $cols from " . $this->quote . $tableName . $this->quote;
       if (count($keys) > 0) {
-        $where = " where " . $quote . $model["technicalKey"] . $quote . " in (";
+        $where = " where " . $this->quote . $model["technicalKey"] . $this->quote . " in (";
         $comma = "";
         foreach ($keys as $k) {
           if (is_numeric($k)) {
@@ -191,17 +242,47 @@ class ExportModelProcessing
         /**
          * Search by parent
          */
-        $where = " where " . $quote . $model["parentKey"] . $quote . " = :parentKey";
+        $where = " where " . $this->quote . $model["parentKey"] . $this->quote . " = :parentKey";
         $args["parentKey"] = $parentKey;
       } else {
         $where = "";
       }
       if (strlen($model["technicalKey"]) > 0) {
-        $order = " order by " . $quote . $model["technicalKey"] . $quote;
+        $order = " order by " . $this->quote . $model["technicalKey"] . $this->quote;
       } else {
         $order = " order by 1";
       }
       $content = $this->execute($sql . $where . $order, $args);
+
+      /**
+       * export the binary data in files
+       */
+      $binaryFields = $this->getBinaryFields($model["tableName"]);
+      if (count($binaryFields) > 0) {
+        /**
+         * Verify if binary folder exists
+         */
+        if (!is_dir($this->binaryFolder)) {
+          if (!mkdir($this->binaryFolder, 0700)) {
+            throw new ExportException("The folder $this->binaryFolder can't be created");
+          }
+        }
+        foreach ($binaryFields as $fieldName) {
+          foreach ($content as $row) {
+            if (strlen($row[$model["technicalKey"]]) > 0) {
+              $ref = $this->getBlobReference($tableName, $model["technicalKey"], $row[$model["technicalKey"]], $fieldName);
+              if ($ref) {
+                $filename=$model["tableName"]."-".$fieldName."-".$row[$model["technicalKey"]].".bin";
+                $fb = fopen($this->binaryFolder."/".$filename,"wb");
+                fwrite($fb,fread($ref, 0));
+                fclose ($fb);
+              }
+            }
+          }
+        }
+      }
+
+
       if ($model["istablenn"] == 1) {
         /**
          * get the description of the secondary table
@@ -236,7 +317,7 @@ class ExportModelProcessing
           /**
            * Get the record associated with the current record
            */
-          $sql = "select * from $quote" . $model2["tableName"] . "$quote where $quote" . $model["tablenn"]["secondaryParentKey"] . "$quote = :secKey";
+          $sql = "select * from $this->quote" . $model2["tableName"] . "$this->quote where $this->quote" . $model["tablenn"]["secondaryParentKey"] . "$this->quote = :secKey";
           $data = $this->execute($sql, array("secKey" => $row[$model["tablenn"]["secondaryParentKey"]]));
           $content[$k][$model["tablenn"]["tableAlias"]] = $data[0];
         }
@@ -252,7 +333,7 @@ class ExportModelProcessing
    * @param array $data: data associated with the request
    * @return array
    */
-  function execute(string $sql, array $data = array()): array
+  private function execute(string $sql, array $data = array()): array
   {
     if ($this->modeDebug) {
       $this->printr($sql);
@@ -261,6 +342,7 @@ class ExportModelProcessing
     try {
       if ($this->lastSql != $sql) {
         $this->stmt = $this->bdd->prepare($sql);
+        $this->lastSql = $sql;
       }
       $this->lastResultExec = $this->stmt->execute($data);
       if ($this->lastResultExec) {
@@ -270,6 +352,32 @@ class ExportModelProcessing
       $this->lastResultExec = false;
       throw new ExportException($e->getMessage());
     }
+  }
+/**
+ * Read a binary object in the database and returns the resource file
+ *
+ * @param string $tableName
+ * @param string $keyName
+ * @param integer $id
+ * @param string $fieldName
+ * @return resource|null
+ */
+  function getBlobReference(string $tableName, string $keyName, int $id, string $fieldName): ?resource
+  {
+    if ($id > 0) {
+      $blobRef = null;
+      $sql = "select " . $this->quote . $fieldName . $this->quote . "
+          from " . $this->quote . $tableName . $this->quote . "
+			    where " . $this->quote . $keyName . $this->quote  . " = ?";
+      $query = $this->connection->prepare($sql);
+      $query->execute(array($id));
+      if ($query->rowCount() == 1) {
+        $query->bindColumn(1, $blobRef, PDO::PARAM_LOB);
+        $query->fetch(PDO::FETCH_BOUND);
+        return $blobRef;
+      }
+    }
+    return null;
   }
 
   /**
@@ -284,8 +392,6 @@ class ExportModelProcessing
    */
   function importDataTable(string $tableAlias, array $data, int $parentKey = 0, array $setValues = array(), $deleteBeforeInsert = false)
   {
-
-    $quote = '"';
     if (!isset($this->model[$tableAlias])) {
       throw new ExportException(sprintf(_("Aucune description trouvée pour l'alias de table %s dans le fichier de paramètres"), $tableAlias));
     }
@@ -298,15 +404,15 @@ class ExportModelProcessing
     $tkeyName = $model["technicalKey"];
     $pkeyName = $model["parentKey"];
     if (strlen($bkeyName) > 0) {
-      $sqlSearchKey = "select $quote$tkeyName$quote as key
-                    from $quote$tableName$quote
-                    where $quote$bkeyName$quote = :businessKey";
+      $sqlSearchKey = "select $this->quote$tkeyName$this->quote as key
+                    from $this->quote$tableName$this->quote
+                    where $this->quote$bkeyName$this->quote = :businessKey";
       $isBusiness = true;
     } else {
       $isBusiness = false;
     }
     if ($deleteBeforeInsert && $parentKey > 0) {
-      $sqlDeleteFromParent = "delete $quote$tableName$quote where $quote$pkeyName$quote = :parent";
+      $sqlDeleteFromParent = "delete $this->quote$tableName$this->quote where $this->quote$pkeyName$this->quote = :parent";
       $this->execute($sqlDeleteFromParent, array("parent" => $parentKey));
     }
     if ($model["istablenn"] == 1) {
@@ -321,8 +427,8 @@ class ExportModelProcessing
       /**
        * delete pre-existent rows
        */
-      $sqlDelete = "delete from $quote$tableName$quote
-            where $quote$pkeyName$quote = :parentKey";
+      $sqlDelete = "delete from $this->quote$tableName$this->quote
+            where $this->quote$pkeyName$this->quote = :parentKey";
       $this->execute($sqlDelete, array("parentKey" => $parentKey));
     }
     foreach ($data as $row) {
@@ -354,9 +460,9 @@ class ExportModelProcessing
           /**
            * Search id of secondary table
            */
-          $sqlSearchSecondary = "select $quote$tkeyName2$quote as key
-                    from $quote$tableName2$quote
-                    where $quote$bkey2$quote = :businessKey";
+          $sqlSearchSecondary = "select $this->quote$tkeyName2$this->quote as key
+                    from $this->quote$tableName2$this->quote
+                    where $this->quote$bkey2$this->quote = :businessKey";
           $sdata = $this->execute($sqlSearchSecondary, array("businessKey" => $row[$tableAlias2][$model2["businessKey"]]));
           $skey = $sdata[0]["key"];
           if (!$skey > 0) {
@@ -381,9 +487,9 @@ class ExportModelProcessing
           $paramKey = $modelParam["technicalKey"];
           $paramBusinessKey = $modelParam["businessKey"];
           $paramTablename = $modelParam["tableName"];
-          $sqlSearchParam = "select $quote$paramKey$quote as key
-                    from $quote$paramTablename$quote
-                    where $quote$paramBusinessKey$quote = :businessKey";
+          $sqlSearchParam = "select $this->quote$paramKey$this->quote as key
+                    from $this->quote$paramTablename$this->quote
+                    where $this->quote$paramBusinessKey$this->quote = :businessKey";
           $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parameter[$modelParam["businessKey"]]));
           $pkey = $pdata[0]["key"];
           if (!$pkey > 0) {
@@ -469,7 +575,6 @@ class ExportModelProcessing
     $skeyName = $model["tablenn"]["secondaryParentKey"];
     $dataSql = array();
     $comma = "";
-    $quote = '"';
     $mode = "insert";
     if ($data[$tkeyName] > 0) {
       $mode = "update";
@@ -479,21 +584,21 @@ class ExportModelProcessing
      * update
      */
     if ($mode == "update") {
-      $sql = "update $quote$tableName$quote set ";
+      $sql = "update $this->quote$tableName$this->quote set ";
       foreach ($data as $field => $value) {
         if (in_array($field, $model["booleanFields"]) && !$value) {
           $value = "false";
         }
         if ($field != $tkeyName) {
-          $sql .= "$comma$quote$field$quote = :$field";
+          $sql .= "$comma$this->quote$field$this->quote = :$field";
           $comma = ", ";
           $dataSql[$field] = $value;
         }
       }
       if (strlen($pkeyName) > 0 && strlen($skeyName) > 0) {
-        $where = " where $quote$pkeyName$quote = :$pkeyName and $quote$skeyName$quote = :$skeyName";
+        $where = " where $this->quote$pkeyName$this->quote = :$pkeyName and $this->quote$skeyName$this->quote = :$skeyName";
       } else {
-        $where = " where $quote$tkeyName$quote = :$tkeyName";
+        $where = " where $this->quote$tkeyName$this->quote = :$tkeyName";
         $dataSql[$tkeyName] = $data[$tkeyName];
       }
       if (!isset($where)) {
@@ -512,7 +617,7 @@ class ExportModelProcessing
           $value = "false";
         }
         if (!($model["istablenn"] == 1 && $field == $model["tablenn"]["tableAlias"])) {
-          $cols .= $comma . $quote . $field . $quote;
+          $cols .= $comma . $this->quote . $field . $this->quote;
           $values .= $comma . ":$field";
           $dataSql[$field] = $value;
           $comma = ", ";
@@ -520,7 +625,7 @@ class ExportModelProcessing
       }
       $cols .= ")";
       $values .= ")";
-      $sql = "insert into $quote$tableName$quote $cols values $values $returning";
+      $sql = "insert into $this->quote$tableName$this->quote $cols values $values $returning";
     }
     $result = $this->execute($sql, $dataSql);
     if ($model["istablenn"] == 1) {
