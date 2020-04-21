@@ -104,9 +104,45 @@ class ExportModelProcessing
     }
     $this->structure = array();
     foreach ($model as $table) {
-      $this->structure[$table["tableName"]] = $this->getFieldsFromTable($table["tableName"]);
+      $tablename = $table["tableName"];
+      $schematable = explode(".", $tablename);
+      $schemaname = "";
+      if (count($schematable) == 2) {
+        $schemaname = $schematable[0];
+        $tablename = $schematable[1];
+      }
+      $this->structure[$table["tableName"]]["attributes"] = $this->getFieldsFromTable($tablename, $schemaname);
+      $this->structure[$table["tableName"]]["description"] = $this->getDescriptionFromTable($tablename, $schemaname);
     }
     return ($this->structure);
+  }
+
+  /**
+   * Get the comment associated to a table
+   *
+   * @param string $tablename
+   * @param string $schemaname
+   * @return string
+   */
+  function getDescriptionFromTable(string $tablename, string $schemaname = ""): string
+  {
+    strlen($schemaname) > 0 ? $hasSchema = true : $hasSchema = false;
+    $data["tablename"] = $tablename;
+    $sql = "select  description
+        from pg_catalog.pg_statio_all_tables st
+        left outer join pg_catalog.pg_description on (relid = objoid and objsubid = 0)
+        where relname = :tablename";
+    if ($hasSchema) {
+      $sql .= " and schemaname = :schema";
+      $data["schema"] = $schemaname;
+    }
+    $res = $this->execute($sql, $data);
+    $description = $res[0]["description"];
+    if ($description) {
+      return $description;
+    } else {
+      return "";
+    }
   }
   /**
    * Get the list of columns of the table
@@ -114,16 +150,9 @@ class ExportModelProcessing
    * @param string $tablename
    * @return array|null
    */
-  function getFieldsFromTable(string $tablename): ?array
+  function getFieldsFromTable(string $tablename, string $schemaname = ""): ?array
   {
-    $schematable = explode(".", $tablename);
-    $schemaname = "";
-    $hasSchema = false;
-    if (count($schematable) == 2) {
-      $schemaname = $schematable[0];
-      $tablename = $schematable[1];
-      $hasSchema = true;
-    }
+    strlen($schemaname) > 0 ? $hasSchema = true : $hasSchema = false;
     $data = array("tablename" => $tablename);
     $select = "SELECT attnum,  pg_attribute.attname AS field,
                 pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS type,
@@ -146,20 +175,96 @@ class ExportModelProcessing
     }
     $order = ' ORDER BY attnum ASC';
     $result = $this->execute($select . $where . $order, $data);
+    if (count($result) == 0) {
+      throw new ExportException("The table $tablename is unknown or has no attributes");
+    }
     /**
      * translate sequence field to serial
      */
-    foreach ($result as $key=>$field) {
+    foreach ($result as $key => $field) {
       if ($field["type"] == 'integer' && substr($field["def"], 0, 7) == "nextval") {
         $result[$key]["type"] = "serial";
       }
-      unset ($result[$key]["def"]);
+      unset($result[$key]["def"]);
     }
     return ($result);
   }
+  /**
+   * Generate the sql script to create the tables in the database
+   *
+   * @param array $structure
+   * @return string
+   */
+  function generateCreateSql(array $structure = array()): string
+  {
+    $sql = "";
+    if (count($structure) == 0) {
+      $structure = $this->structure;
+    }
+    $tables = array();
+    foreach ($structure as $tableName => $table) {
+      if (!in_array($tableName, $tables)) {
+        $sql .= $this->generateSqlForTable($tableName, $table);
+      }
+    }
+    return $sql;
+  }
+  /**
+   * Generate the sql code for create a table in the database
+   *
+   * @param string $tableName
+   * @param array $table
+   * @return string
+   */
+  function generateSqlForTable(string $tableName, array $table): string
+  {
+    $pkey = "";
+    $comment = "";
+    /**
+     * Add the comment of the table
+     */
+    if (strlen($table["description"]) > 0) {
+      $comment = "comment on table " . $this->quote . $tableName . $this->quote . " is " . $this->bdd->quote($table["description"]) . ";" . PHP_EOL;
+    }
+    $script = "create table " . $this->quote . $tableName . $this->quote . " (" . PHP_EOL;
+    $nbAtt = count($table["attributes"]) - 1;
+    for ($x = 0; $x <= $nbAtt; $x++) {
+      if ($x > 0) {
+        $script .= ",";
+      }
+      $attr = $table["attributes"][$x];
+      $script .= $this->quote . $attr["field"] . $this->quote;
+      $script .= " " . $attr["type"];
+      if ($attr["notnull"] == 1) {
+        $script .= " not null";
+      }
+      if (strlen($attr["key"]) > 0) {
+        if (strlen($pkey) > 0) {
+          $pkey .= ",";
+        }
+        $pkey .= $this->quote . $attr["field"] . $this->quote;
+      }
+      /**
+       * Add the comment on the column
+       */
+      if (strlen($attr["comment"]) > 0) {
+        $comment .= "comment on column " . $this->quote . $tableName . $this->quote . "." . $this->quote . $attr["field"] . $this->quote . " is " . $this->bdd->quote($attr["comment"]) . ";" . PHP_EOL;
+      }
+      $script .= PHP_EOL;
+    }
+    /**
+     * Add the primary key
+     */
+    if (strlen($pkey) > 0) {
+      $script .= ",primary key (" . $pkey . ")" . PHP_EOL;
+    }
+    $script .= ");" . PHP_EOL;
+    $script .= $comment . PHP_EOL;
+    return $script;
+  }
 
   /**
-   * Get the list of the tables witch are not children
+   * Get the list of the tables which are not children
    *
    * @return array
    */
@@ -207,7 +312,22 @@ class ExportModelProcessing
     }
     return $fields;
   }
-
+  /**
+   * Get the list of boolean fields in a table
+   *
+   * @param string $tableName
+   * @return array
+   */
+  function getBooleanFields(string $tableName): array
+  {
+    $fields = array();
+    foreach ($this->structure[$tableName] as $col) {
+      if ($col["type"] == "boolean") {
+        $fields[] = $col["field"];
+      }
+    }
+    return $fields;
+  }
   /**
    * Get the content of a table
    *
@@ -273,10 +393,10 @@ class ExportModelProcessing
             if (strlen($row[$model["technicalKey"]]) > 0) {
               $ref = $this->getBlobReference($tableName, $model["technicalKey"], $row[$model["technicalKey"]], $fieldName);
               if ($ref) {
-                $filename=$model["tableName"]."-".$fieldName."-".$row[$model["technicalKey"]].".bin";
-                $fb = fopen($this->binaryFolder."/".$filename,"wb");
-                fwrite($fb,fread($ref, 0));
-                fclose ($fb);
+                $filename = $model["tableName"] . "-" . $fieldName . "-" . $row[$model["technicalKey"]] . ".bin";
+                $fb = fopen($this->binaryFolder . "/" . $filename, "wb");
+                fwrite($fb, fread($ref, 0));
+                fclose($fb);
               }
             }
           }
@@ -354,15 +474,15 @@ class ExportModelProcessing
       throw new ExportException($e->getMessage());
     }
   }
-/**
- * Read a binary object in the database and returns the resource file
- *
- * @param string $tableName
- * @param string $keyName
- * @param integer $id
- * @param string $fieldName
- * @return resource|null
- */
+  /**
+   * Read a binary object in the database and returns the resource file
+   *
+   * @param string $tableName
+   * @param string $keyName
+   * @param integer $id
+   * @param string $fieldName
+   * @return resource|null
+   */
   function getBlobReference(string $tableName, string $keyName, int $id, string $fieldName): ?resource
   {
     if ($id > 0) {

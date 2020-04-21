@@ -33,8 +33,8 @@
             }
 
             patternForm("alpacaPattern", "pattern", pattern);
-            var alp = $("#alpacaPattern").alpaca("get");
             $('#modelForm').submit(function (event) {
+                var alp = $("#alpacaPattern").alpaca("get");
                 alp.refreshValidationState(true);
                 if (!alp.isValid(true)) {
                     alert("La définition du modèle n'est pas valide.");

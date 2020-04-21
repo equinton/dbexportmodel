@@ -37,6 +37,7 @@ try {
     $message->set("--binaryfolder=dbexport: name of the folder which contents the binary files exported from database");
     $message->set("--filezip=dbexport.zip: name of zip file");
     $message->set("--zip: create or use a zip file witch contents structure, description, data and binary files");
+    $message->set("--sqlfile:dbcreate.sql name of the file that will contain the database tables generation sql script");
     $message->set("Change params in param.ini to specify the parameters to connect the database, and specify the list of schemas to analyze, separated by a comma");
     throw new ExportException();
   } else {
@@ -49,6 +50,7 @@ try {
     $keyfile = "dbexportkeys.json";
     $filezip = "dbexport.zip";
     $binaryfolder = "dbexport";
+    $sqlfile = "dbcreate.sql";
     $schemas = $dbparam[$sectionName]["schema"];
     $zipped = false;
     $action = "";
@@ -186,7 +188,11 @@ try {
       break;
     case "structure":
       file_put_contents($root . $structurename, json_encode($export->generateStructure()));
-      $message->set("Database structure generated in $root.$structurename");
+      $message->set("Database structure generated in $root$structurename");
+      break;
+    case "create":
+      file_put_contents($root . $sqlfile, $export->generateCreateSql());
+      $message->set("Script of creation of the tables in the database generated in $root$sqlfile");
       break;
     default:
       throw new ExportException("No action defined. Run with -h option to see the available parameters");
