@@ -30,6 +30,7 @@ if ($argv[1] == "-h" || $argv[1] == "--help") {
   $message->set("--export: generate the export of the data");
   $message->set("--import: generate the import of the data");
   $message->set("--create: generate the sql script of creation of the tables");
+  $message->set("--structure: generate the structure of the tables involved in the export");
   $message->set("--keyfile=dbexportkeys.json: list of the keys to be treated for the export operation");
   $message->set("--structurename=dbexportstructure.json: name of the file which contents the database structure");
   $message->set("--description=dbexportdescription.json: name of the file which contents the description of the export/import");
@@ -123,7 +124,7 @@ try {
       /**
        * Generate the structure of the database before export
        */
-      file_put_contents($structurename, $export->generateStructure());
+      file_put_contents($root . $structurename, $export->generateStructure());
     } else {
       throw new ExportException("The file $root$structurename don't exists");
     }
@@ -180,7 +181,7 @@ try {
       }
       break;
     case "structure":
-
+      file_put_contents($root . $structurename, $export->generateStructure());
       break;
     default:
       throw new ExportException("No action defined. Run with -h option to see the available parameters");

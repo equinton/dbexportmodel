@@ -25,7 +25,9 @@
                 if (pattern.length > 0) {
                     pattern = pattern.replace(/&quot;/g, '"');
                     pattern = JSON.parse(pattern);
-                } else { }
+                } else {
+                    pattern = "";
+                 }
             } catch (e) {
                 pattern = "";
             }
@@ -52,8 +54,12 @@
             fileread.onload = function (e) {
                 var content = e.target.result;
                 try {
+                    content = content.replace(/&quot;/g,'"');
                     var data = JSON.parse(content);
-                    alp.setValue(data);
+                    $("#alpacaPattern").alpaca("destroy");
+                    patternForm(data);
+                    //alp.setValue(data);
+                    //console.log(data);
                 } catch {
                     alert("Les données ne peuvent être chargées");
                 }
@@ -61,16 +67,18 @@
 
             $("#input").change(function () {
                 var file = this.files[0];
-                console.log(file);
-                $("#export_model_name").val(file.name);
-                fileread.readAsText(file);
+                if (file) {
+                    //console.log(file);
+                    $("#export_model_name").val(file.name);
+                    fileread.readAsText(file);
+                }
             });
         });
     </script>
     <h2>Création - Modification d'un modèle d'export de données</h2>
-    <div class="row">
-        <div class="col-md-6">
-            <form class="form-horizontal protoform" id="modelForm">
+    <form class="form-horizontal protoform" id="modelForm">
+        <div class="row">
+            <div class="col-md-6">
                 <input type="file" id="input" accept="application/json">
                 <div class="form-group center">
                     <button type="submit" class="btn btn-primary button-valid">Enregistrer</button>
@@ -79,67 +87,72 @@
                     <label for="export_model_name" class="control-label col-md-4"><span class="red">*</span> Nom du
                         modèle :</label>
                     <div class="col-md-8">
-                        <input id="export_model_name" type="text" class="form-control" name="export_model_name" value="dbexport.json"
+                        <input id="export_model_name" type="text" class="form-control" name="export_model_name" value="dbexportdescription.json"
                             required autofocus>
                     </div>
                 </div>
+            </div>
+            <div class="col-md-6"></div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
                 <div id="alpacaPattern"></div>
                 <div class="form-group center">
                     <button type="submit" class="btn btn-primary button-valid">Enregistrer</button>
                 </div>
-            </form>
-        </div>
-        <div class="col-md-6">
-            <div class="bg-info">
-                <h3>Description des champs à renseigner</h3>
-                <ul>
-                    <li>Le nom de la table doit correspondre au nom dans la base de données</li>
-                    <li>L'alias va être utilisé pour renommer la table dans le fichier d'export, si celle-ci peut être
-                        liée à deux autres tables. Les alias, s'ils ne sont par renseignés, seront déduits du nom de la
-                        table lors de l'importation.</li>
-                    <li>La clé primaire correspond à la clé automatique générée par la base de données. Elle ne sera pas
-                        renseignée dans le cas d'une table n-n, dont la clé est composée de deux champs. Dans tous les
-                        autres cas, elle doit être indiquée</li>
-                    <li>La clé métier est la clé unique utilisée pour identifier un enregistrement. Il peut s'agir soit
-                        d'un champ signifiant (nom d'un taxon, identifiant unique ou UUID, par exemple), soit de la clé
-                        primaire. Si cette clé est renseignée, le programme d'importation pourra modifier un
-                        enregistrement pré-existant en recherchant la clé primaire à partir de cette information. Si la
-                        clé métier correspond à la clé primaire, alors les valeurs des clés primaires seront conservées
-                        lors de l'importation</li>
-                    <li>La liste des tables liées contient les alias (ou les noms des tables, si ceux-ci ne sont pas
-                        renseignés) des tables filles. Chaque alias devra faire l'objet d'une description.</li>
-                    <li>Si la table fille est reliée à la table parente par une relation de type 1-1, c'est à dire si la
-                        clé est partagée entre les deux tables, l'indicateur doit être activé</li>
-                    <li>La clé étrangère correspond à la colonne permettant d'identifier l'enregistrement parent, pour
-                        les tables filles</li>
-                    <li>La liste des champs de type booléen présents dans la table doit être indiquée. Dans le cas
-                        contraire, une erreur risque d'être générée lors de l'importation</li>
-                    <li>Si la table fille est une table portant une relation de type n-n, c'est à dire dont la clé est
-                        composée d'une part de la clé de la table parente, et d'autre part de la clé d'une table liée,
-                        des informations complémentaires sont à saisir :
-                        <ul>
-                            <li>l'alias (ou son nom) de la table portant la deuxième partie de la relation</li>
-                            <li>le nom de la colonne, dans la table n-n, portant cette relation</li>
-                            <li>la seconde table doit également être déclarée dans le modèle, en précisant notamment sa
-                                clé primaire</li>
-                        </ul>
-                    </li>
-                </ul>
-                <h3>Fonctionnement de l'importation</h3>
-                <ul>
-                    <li>Si la clé métier est renseignée, le programme va rechercher un enregistrement pré-existant dans
-                        la table qui correspond à la valeur indiquée. S'il existe, cet enregistrement sera mis à jour,
-                        sinon, un nouvel enregistrement sera créé</li>
-                    <li>Pour conserver la clé primaire présente dans le fichier d'export, par exemple pour la mise à
-                        jour de tables de paramètres, il faut que le nom de la clé métier soit identique à la clé
-                        primaire</li>
-                    <li>Pour les tables de type n-n, les relations correspondant au parent seront supprimées, avant
-                        d'être recréées avec les informations fournies</li>
-                    <li>Dans le cas d'une relation de type 1-1, où une table fille partage la même clé que la table
-                        parente, la clé primaire et la clé étrangère doivent être identiques dans le modèle</li>
-
-                </ul>
             </div>
+        </div>
+    </form>
+    <div class="col-md-12">
+        <div class="bg-info">
+            <h3>Description des champs à renseigner</h3>
+            <ul>
+                <li>Le nom de la table doit correspondre au nom dans la base de données</li>
+                <li>L'alias va être utilisé pour renommer la table dans le fichier d'export, si celle-ci peut être
+                    liée à deux autres tables. Les alias, s'ils ne sont par renseignés, seront déduits du nom de la
+                    table lors de l'importation.</li>
+                <li>La clé primaire correspond à la clé automatique générée par la base de données. Elle ne sera pas
+                    renseignée dans le cas d'une table n-n, dont la clé est composée de deux champs. Dans tous les
+                    autres cas, elle doit être indiquée</li>
+                <li>La clé métier est la clé unique utilisée pour identifier un enregistrement. Il peut s'agir soit
+                    d'un champ signifiant (nom d'un taxon, identifiant unique ou UUID, par exemple), soit de la clé
+                    primaire. Si cette clé est renseignée, le programme d'importation pourra modifier un
+                    enregistrement pré-existant en recherchant la clé primaire à partir de cette information. Si la
+                    clé métier correspond à la clé primaire, alors les valeurs des clés primaires seront conservées
+                    lors de l'importation</li>
+                <li>La liste des tables liées contient les alias (ou les noms des tables, si ceux-ci ne sont pas
+                    renseignés) des tables filles. Chaque alias devra faire l'objet d'une description.</li>
+                <li>Si la table fille est reliée à la table parente par une relation de type 1-1, c'est à dire si la
+                    clé est partagée entre les deux tables, l'indicateur doit être activé</li>
+                <li>La clé étrangère correspond à la colonne permettant d'identifier l'enregistrement parent, pour
+                    les tables filles</li>
+                <li>La liste des champs de type booléen présents dans la table doit être indiquée. Dans le cas
+                    contraire, une erreur risque d'être générée lors de l'importation</li>
+                <li>Si la table fille est une table portant une relation de type n-n, c'est à dire dont la clé est
+                    composée d'une part de la clé de la table parente, et d'autre part de la clé d'une table liée,
+                    des informations complémentaires sont à saisir :
+                    <ul>
+                        <li>l'alias (ou son nom) de la table portant la deuxième partie de la relation</li>
+                        <li>le nom de la colonne, dans la table n-n, portant cette relation</li>
+                        <li>la seconde table doit également être déclarée dans le modèle, en précisant notamment sa
+                            clé primaire</li>
+                    </ul>
+                </li>
+            </ul>
+            <h3>Fonctionnement de l'importation</h3>
+            <ul>
+                <li>Si la clé métier est renseignée, le programme va rechercher un enregistrement pré-existant dans
+                    la table qui correspond à la valeur indiquée. S'il existe, cet enregistrement sera mis à jour,
+                    sinon, un nouvel enregistrement sera créé</li>
+                <li>Pour conserver la clé primaire présente dans le fichier d'export, par exemple pour la mise à
+                    jour de tables de paramètres, il faut que le nom de la clé métier soit identique à la clé
+                    primaire</li>
+                <li>Pour les tables de type n-n, les relations correspondant au parent seront supprimées, avant
+                    d'être recréées avec les informations fournies</li>
+                <li>Dans le cas d'une relation de type 1-1, où une table fille partage la même clé que la table
+                    parente, la clé primaire et la clé étrangère doivent être identiques dans le modèle</li>
+
+            </ul>
         </div>
     </div>
 </body>

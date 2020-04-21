@@ -500,7 +500,7 @@ class ExportModelProcessing
             try {
               $pkey = $this->writeData($parameterName, $parameter);
             } catch (Exception $e) {
-              throw new ExportException(sprintf(_("Erreur d'enregistrement dans la table de paramètres %1$s pour la valeur %2$s"), $parameterName, $parameter[$modelParam["businessKey"]]));
+              throw new ExportException(sprintf(_('Erreur d\'enregistrement dans la table de paramètres %1$s pour la valeur %2$s'), $parameterName, $parameter[$modelParam["businessKey"]]));
             }
           }
           if ($this->modeDebug) {

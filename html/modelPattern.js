@@ -1,91 +1,61 @@
 
-function patternForm(data) {
+function patternForm(data = "") {
+    if ($("#alpacaPattern").alpaca("exists")) {
+        $("#alpacaPattern").alpaca("destroy");
+    }
     $("#alpacaPattern").alpaca({
         "data": data,
         "view": "bootstrap-edit-horizontal",
         "schema": {
-            "title":"Description du modèle",
+            "title":"Model description",
             "type": "array",
             "items": {
+                "title":"Description of a table",
                 "type": "object",
                 "properties": {
                     "tableName": {
-                        "title": "Nom de la table",
+                        "title": "Name of the table",
                         "type": "string",
                         "required": true
                     },
                     "tableAlias": {
-                        "title": "Alias de la table (si elle dépend de plusieurs parents)",
+                        "title": "Alias of the table (if depends of multiple parents)",
                         "type": "string"
                     },
                     "technicalKey": {
-                        "title": "Clé primaire",
+                        "title": "Primary key",
                         "type": "string"
                     },
                     "isEmpty": {
-                        "title":"Table fournie vide (table de paramètres renseignée par les valeurs  fournies dans les autres enregistrements) ?",
+                        "title":"Table empty (Parameter table filled with other table records)?",
                         "type": "boolean",
                         "default" : false
                     },
                     "businessKey": {
-                        "title": "Clé métier",
+                        "title": "Business key",
                         "type": "string",
                     },
                     "parentKey": {
-                        "title": "Nom de la clé étrangère (table parente)",
+                        "title": "Foreign key (parent table)",
                         "type": "string"
                     },
                     "istable11": {
-                        "title": "Relation de type 1-1 avec le parent (clé partagée)",
+                        "title": "Relation of type 1-1 with the parent (shared key)",
                         "type": "boolean",
                         "default": false
                     },
-                    "booleanFields": {
-                        "title": "Liste des champs de type booléen",
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "binaryFields": {
-                        "title": "Liste des champs binaires",
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "fields": {
-                        "title": "Liste des colonnes de la table",
-                        "type": "array",
-                        "items": {
-                            "type":"object",
-                            "properties": {
-                                "fieldName":{
-                                    "title":"Nom de la colonne",
-                                    "type":"string"
-                                },
-                                "fieldType":{
-                                    "title":"Type du champ",
-                                    "type":"select",
-                                    "enum":["string","numeric","boolean", "binary"],
-                                    "required":true,
-                                    "default":"string"
-                                }
-                            }
-                        }
-                    },
                     "children": {
-                        "title": "Liste des alias des tables liées",
+                        "title": "Liste of alias of related tables",
                         "type": "array",
                         "items" : {
                             "type": "object",
                             "properties": {
                                 "aliasName": {
-                                    "title":"Alias de la table",
+                                    "title":"Alias of the table",
                                     "type":"string"
                                 },
                                 "isStrict": {
-                                    "title":"Relation stricte (les enregistrements enfants sont totalement dépendants de l'enregistrement courant) ?",
+                                    "title":"Strict relation (the children records depends only of the current record) ?",
                                     "type":"boolean",
                                     "default":true
                                 }
@@ -93,24 +63,24 @@ function patternForm(data) {
                         }
                     },
                     "parameters": {
-                        "title":"Liste des tables de paramètres associées",
+                        "title":"Liste of associated parameter tables",
                         "type":"array",
                         "items": {
                             "type":"object",
                             "properties": {
                                 "aliasName": {
-                                    "title": "Alias de la table",
+                                    "title": "Table alias",
                                     "type": "string"
                                 },
                                 "fieldName":{
-                                    "title":"Nom de la colonne dans la table courante",
+                                    "title":"Column name in the current table",
                                     "type":"string"
                                 }
                             }
                         }
                     },
                     "istablenn":{
-                        "title": "Table de type n-n",
+                        "title": "Table of type n-n",
                         "type":"boolean",
                         "default":false
                     },
@@ -118,11 +88,11 @@ function patternForm(data) {
                         "type":"object",
                         "properties": {
                             "secondaryParentKey": {
-                                "title": "Nom de la seconde clé étrangère",
+                                "title": "Name of the second foreign key",
                                 "type": "string"
                             },
                             "tableAlias": {
-                                "title": "Alias de la seconde table",
+                                "title": "Alias of the second table",
                                 "type": "string"
                             }
                         },
