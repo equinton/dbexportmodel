@@ -83,8 +83,11 @@ class ExportModelProcessing
    * @param array $structure
    * @return void
    */
-  function initStructure(array $structure)
+  function initStructure(array $structure = array())
   {
+    if (count($structure) == 0) {
+      throw new ExportException("The structure of the export in empty");
+    }
     $this->structure = $structure;
   }
 
@@ -127,7 +130,6 @@ class ExportModelProcessing
                 (SELECT col_description(pg_attribute.attrelid,pg_attribute.attnum)) AS COMMENT,
                 CASE pg_attribute.attnotnull WHEN FALSE THEN 0 ELSE 1 END AS notnull,
                 pg_constraint.conname AS key,
-                pc2.conname AS ckey,
                 (SELECT pg_attrdef.adsrc FROM pg_attrdef WHERE pg_attrdef.adrelid = pg_class.oid AND pg_attrdef.adnum = pg_attribute.attnum) AS def
                 FROM pg_tables
                 JOIN pg_class on (pg_class.relname = pg_tables.tablename)
@@ -136,10 +138,7 @@ class ExportModelProcessing
                 ON pg_constraint.contype = 'p'::char
                 AND pg_constraint.conrelid = pg_class.oid
                 AND (pg_attribute.attnum = ANY (pg_constraint.conkey))
-                LEFT JOIN pg_constraint AS pc2
-                ON pc2.contype = 'f'::char
-                AND pc2.conrelid = pg_class.oid
-                AND (pg_attribute.attnum = ANY (pc2.conkey))";
+                ";
     $where = ' WHERE tablename = :tablename';
     if ($hasSchema) {
       $where .= ' AND schemaname = :schemaname';
@@ -150,11 +149,13 @@ class ExportModelProcessing
     /**
      * translate sequence field to serial
      */
-    foreach ($result as $field) {
-      if ($field["type"] == 'integer' && substr($field["type"], 0, 7) == "nextval") {
-        $field["type"] = "serial";
+    foreach ($result as $key=>$field) {
+      if ($field["type"] == 'integer' && substr($field["def"], 0, 7) == "nextval") {
+        $result[$key]["type"] = "serial";
       }
+      unset ($result[$key]["def"]);
     }
+    return ($result);
   }
 
   /**

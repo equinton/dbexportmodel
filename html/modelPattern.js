@@ -1,9 +1,12 @@
-
-function patternForm(data = "") {
-    if ($("#alpacaPattern").alpaca("exists")) {
-        $("#alpacaPattern").alpaca("destroy");
-    }
-    $("#alpacaPattern").alpaca({
+/**
+ * Generate the AlpacaJs Form
+ * @param {string} id: id of the form
+ * @param {string} dataId: id of the field which contains data
+ * @param {json} data: data of the form
+ */
+function patternForm(id, dataId, data = "") {
+    $("#"+id).alpaca("destroy");
+    $("#"+id).alpaca({
         "data": data,
         "view": "bootstrap-edit-horizontal",
         "schema": {
@@ -115,14 +118,14 @@ function patternForm(data = "") {
         },
         "postRender": function (control) {
             var value = control.getValue();
-            $("#pattern").val(JSON.stringify(value, null, null));
+            $("#"+dataId).val(JSON.stringify(value, null, null));
             control.on("mouseout", function () {
                 var value = control.getValue();
-                $("#pattern").val(JSON.stringify(value, null, null));
+                $("#"+dataId).val(JSON.stringify(value, null, null));
             });
             control.on("change", function () {
                 var value = control.getValue();
-                $("#pattern").val(JSON.stringify(value, null, null));
+                $("#"+dataId).val(JSON.stringify(value, null, null));
             });
         }
     })

@@ -12,7 +12,6 @@
  */
 
 error_reporting(E_ERROR | E_WARNING | E_PARSE);
-require_once "lib/ObjetBDD.php";
 require_once 'lib/exportmodel.class.php';
 require_once 'lib/message.php';
 
@@ -21,75 +20,77 @@ $paramfile = "param.ini";
 $sectionName = "database";
 
 $message = new Message();
+try {
+  if ($argv[1] == "-h" || $argv[1] == "--help" || count($argv) == 1) {
+    $message->set("dbExportModel : exchange data between postgresql databases, with json files");
+    $message->set("Licence : MIT. Copyright © 2020 - Éric Quinton");
+    $message->set("Options :");
+    $message->set("-h ou --help: this help message");
+    $message->set("--export: generate the export of the data");
+    $message->set("--import: generate the import of the data");
+    $message->set("--create: generate the sql script of creation of the tables");
+    $message->set("--structure: generate the structure of the tables involved in the export");
+    $message->set("--keyfile=dbexportkeys.json: list of the keys to be treated for the export operation");
+    $message->set("--structurename=dbexportstructure.json: name of the file which contents the database structure");
+    $message->set("--description=dbexportdescription.json: name of the file which contents the description of the export/import");
+    $message->set("--data=dbexportdata.json: file contents data");
+    $message->set("--binaryfolder=dbexport: name of the folder which contents the binary files exported from database");
+    $message->set("--filezip=dbexport.zip: name of zip file");
+    $message->set("--zip: create or use a zip file witch contents structure, description, data and binary files");
+    $message->set("Change params in param.ini to specify the parameters to connect the database, and specify the list of schemas to analyze, separated by a comma");
+    throw new ExportException();
+  } else {
+    $dbparam = parse_ini_file($paramfile, true);
 
-if ($argv[1] == "-h" || $argv[1] == "--help") {
-  $message->set("dbExportModel : exchange data between postgresql databases, with json files");
-  $message->set("Licence : MIT. Copyright © 2020 - Éric Quinton");
-  $message->set("Options :");
-  $message->set("-h ou --help: this help message");
-  $message->set("--export: generate the export of the data");
-  $message->set("--import: generate the import of the data");
-  $message->set("--create: generate the sql script of creation of the tables");
-  $message->set("--structure: generate the structure of the tables involved in the export");
-  $message->set("--keyfile=dbexportkeys.json: list of the keys to be treated for the export operation");
-  $message->set("--structurename=dbexportstructure.json: name of the file which contents the database structure");
-  $message->set("--description=dbexportdescription.json: name of the file which contents the description of the export/import");
-  $message->set("--data=dbexportdata.json: file contents data");
-  $message->set("--binaryfolder=dbexport: name of the folder which contents the binary files exported from database");
-  $message->set("--filezip=dbexport.zip: name of zip file");
-  $message->set("--zip: create or use a zip file witch contents structure, description, data and binary files");
-  $message->set("Change params in param.ini to specify the parameters to connect the database, and specify the list of schemas to analyze, separated by a comma");
-} else {
-  $dbparam = parse_ini_file($paramfile, true);
+    $isConnected = false;
+    $structurename = "dbexportstructure.json";
+    $description = "dbexportdescription.json";
+    $data = "dbexportdata.json";
+    $keyfile = "dbexportkeys.json";
+    $filezip = "dbexport.zip";
+    $binaryfolder = "dbexport";
+    $schemas = $dbparam[$sectionName]["schema"];
+    $zipped = false;
+    $action = "";
+    $modeDebug = false;
+    $tempDir = "tmp";
+    $root = "";
+    $structure = "";
 
-  $isConnected = false;
-  $structurename = "dbexportstructure.json";
-  $description = "dbexportdescription.json";
-  $data = "dbexportdata.json";
-  $keyfile = "dbexportkeys.json";
-  $filezip = "dbexport.zip";
-  $binaryfolder = "dbexport";
-  $schemas = $dbparam[$sectionName]["schema"];
-  $zipped = false;
-  $action = "";
-  $modeDebug = false;
-  $tempDir = "tmp";
-  $root = "";
-
-  /**
-   * Database connection
-   */
-  try {
-    $bdd = new PDO($dbparam[$sectionName]["dsn"], $dbparam[$sectionName]["login"], $dbparam[$sectionName]["passwd"]);
-    $isConnected = true;
-  } catch (PDOException $e) {
-    $message->set($e->getMessage());
-  }
-
-  if ($isConnected) {
-    $export = new ExportModelProcessing($bdd, false);
     /**
-     * Processing args
+     * Database connection
      */
-    for ($i = 1; $i <= count($argv); $i++) {
-      $a_arg = explode("=", $argv[$i]);
-      $arg = subtr($a_arg[0], 2);
-      if (strlen($a_arg[1]) > 0) {
-        $$arg = $a_arg[1];
-      } else {
-        if ($arg == "zip") {
-          $zipped = true;
-        } else if (in_array($arg, array("export", "import", "create"))) {
-          $action = $arg;
-        } else if ($arg == "debug") {
-          $modeDebug = true;
+    try {
+      $bdd = new PDO($dbparam[$sectionName]["dsn"], $dbparam[$sectionName]["login"], $dbparam[$sectionName]["passwd"]);
+      $isConnected = true;
+    } catch (PDOException $e) {
+      $message->set($e->getMessage());
+    }
+
+    if ($isConnected) {
+      $export = new ExportModelProcessing($bdd, false);
+      /**
+       * Processing args
+       */
+      for ($i = 1; $i <= count($argv); $i++) {
+        $a_arg = explode("=", $argv[$i]);
+        $arg = substr($a_arg[0], 2);
+        if (strlen($a_arg[1]) > 0) {
+          $$arg = $a_arg[1];
+        } else {
+          if ($arg == "zip") {
+            $zipped = true;
+          } else if (in_array($arg, array("export", "import", "create", "structure"))) {
+            $action = $arg;
+          } else if ($arg == "debug") {
+            $modeDebug = true;
+          }
         }
       }
     }
   }
-}
 
-try {
+
   if ($zipped && $action == "import") {
     /**
      * Extract the content of the archive
@@ -111,29 +112,32 @@ try {
   /**
    * Open the structure and the description
    */
+
   if (!file_exists($root . $description)) {
     throw new ExportException("The file $root$description don't exists");
   }
   $fd = file_get_contents($root . $description);
   if (!$fd) {
-    throw new ExportException("The file $root.$description can't be read");
+    throw new ExportException("The file $root$description can't be read");
   }
   $export->initModel(json_decode($fd, true));
-  if (!file_exists($root . $structurename)) {
-    if ($action == "export") {
+  if ($action != "structure") {
+    if (!file_exists($root . $structurename)) {
       /**
        * Generate the structure of the database before export
        */
       file_put_contents($root . $structurename, $export->generateStructure());
     } else {
-      throw new ExportException("The file $root$structurename don't exists");
+      $fs = file_get_contents($root . $structurename);
+      if (!$fs) {
+        throw new ExportException("The file $root.$structurename can't be read");
+      }
+      $structure = json_decode($fs, true);
+      if (!is_array($structure) && count($structure) == 0) {
+        throw new ExportException("$root$structurename is empty");
+      }
+      $export->initStructure($structure);
     }
-  } else {
-    $fs = file_get_contents($root . $structurename);
-    if (!$fs) {
-      throw new ExportException("The file $root.$structurename can't be read");
-    }
-    $export->initStructure(json_decode($fs, true));
   }
 
   switch ($action) {
@@ -181,7 +185,8 @@ try {
       }
       break;
     case "structure":
-      file_put_contents($root . $structurename, $export->generateStructure());
+      file_put_contents($root . $structurename, json_encode($export->generateStructure()));
+      $message->set("Database structure generated in $root.$structurename");
       break;
     default:
       throw new ExportException("No action defined. Run with -h option to see the available parameters");
