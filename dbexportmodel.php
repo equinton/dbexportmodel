@@ -49,7 +49,7 @@ try {
     $data = "dbexportdata.json";
     $keyfile = "dbexportkeys.json";
     $filezip = "dbexport.zip";
-    $binaryfolder = "dbexport";
+    $binaryfolder = "binary";
     $sqlfile = "dbcreate.sql";
     $schemas = $dbparam[$sectionName]["schema"];
     $zipped = false;
@@ -91,52 +91,59 @@ try {
       }
     }
   }
-
-
-  if ($zipped && $action == "import") {
-    /**
-     * Extract the content of the archive
-     */
-    $zipImport = new ZipArchive();
-    $zi = $zipImport->open($filezip);
-    if ($zi === true) {
-      if (!is_dir($tempDir)) {
-        if (!mkdir($tempDir, 0700)) {
-          throw new ExportException("The folder $tempDir can't be created");
-        }
+  /**
+   * Set the binary folder
+   */
+  $export->binaryFolder = $binaryfolder;
+  /**
+   * Prepare the zip process
+   */
+  if ($zipped) {
+    if (!is_dir($tempDir)) {
+      if (!mkdir($tempDir, 0700)) {
+        throw new ExportException("The folder $tempDir can't be created");
       }
-      $zipImport->extractTo($tempDir);
-      $root = $tempDir . "/";
-    } else {
-      throw new ExportException("The zip file can't to be opened");
     }
+    if ($action == "import") {
+      /**
+       * Extract the content of the archive
+       */
+      $zipImport = new ZipArchive();
+      $zi = $zipImport->open($filezip);
+      if ($zi === true) {
+        $zipImport->extractTo($tempDir);
+      } else {
+        throw new ExportException("The zip file can't to be opened");
+      }
+    }
+    $root = $tempDir . "/";
   }
   /**
    * Open the structure and the description
    */
 
-  if (!file_exists($root . $description)) {
-    throw new ExportException("The file $root$description don't exists");
+  if (!file_exists($description)) {
+    throw new ExportException("The file $description don't exists");
   }
-  $fd = file_get_contents($root . $description);
+  $fd = file_get_contents($description);
   if (!$fd) {
-    throw new ExportException("The file $root$description can't be read");
+    throw new ExportException("The file $description can't be read");
   }
   $export->initModel(json_decode($fd, true));
   if ($action != "structure") {
-    if (!file_exists($root . $structurename)) {
+    if (!file_exists($structurename)) {
       /**
        * Generate the structure of the database before export
        */
-      file_put_contents($root . $structurename, $export->generateStructure());
+      file_put_contents($structurename, $export->generateStructure());
     } else {
-      $fs = file_get_contents($root . $structurename);
+      $fs = file_get_contents($structurename);
       if (!$fs) {
-        throw new ExportException("The file $root.$structurename can't be read");
+        throw new ExportException("The file $structurename can't be read");
       }
       $structure = json_decode($fs, true);
       if (!is_array($structure) && count($structure) == 0) {
-        throw new ExportException("$root$structurename is empty");
+        throw new ExportException("$structurename is empty");
       }
       $export->initStructure($structure);
     }
@@ -167,18 +174,38 @@ try {
        */
       if (!$zipped) {
         file_put_contents($data, json_encode($dexport));
+        $message->set("Data are been recorded in the file $dexport. Where applicable, the binary data are stored in the folder $binaryfolder");
       } else {
-        file_put_contents($tempDir . $data, json_encode($dexport));
-      }
-      /**
-       * Write the files
-       */
-      if ($zipped) {
-        $zipExport = new ZipArchive($filezip);
-        $zipExport->addFile($root . $structurename, basename($structurename));
-        $zipExport->addFile($root . $structurename, basename($structurename));
-        $zipExport->addFile($tempDir . $data, basename($tempDir . $data));
+        file_put_contents($root . $data, json_encode($dexport));
+        $zipExport = new ZipArchive;
+        $zipExport->open($filezip, ZipArchive::CREATE);
+        $zipExport->addFile($structurename, basename($structurename));
+        $zipExport->addFile($description, basename($description));
+        $zipExport->addFile($root . $data, basename($data));
+        /**
+         * Add binary files
+         */
+        if (is_dir($binaryfolder)) {
+          foreach (scandir($binaryfolder) as $bf) {
+            if (is_file($binaryfolder . "/" . $bf) && substr($bf, -3) == "bin") {
+              $zipExport->addFile($binaryfolder . "/" . $bf, "binary/" . $bf);
+            }
+          }
+        }
         $zipExport->close();
+        /**
+         * Purge of files
+         */
+        unlink($root . $data);
+        if (is_dir($binaryfolder)) {
+          foreach (scandir($binaryfolder) as $bf) {
+            if (is_file($binaryfolder . "/" . $bf) && substr($bf, -3) == "bin") {
+              unlink($binaryfolder . "/" . $bf);
+            }
+          }
+          rmdir($binaryfolder);
+        }
+        $message->set("Data are available in the zip file $filezip");
       }
       break;
     case "import":
