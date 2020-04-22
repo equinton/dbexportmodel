@@ -250,13 +250,13 @@ class ExportModelProcessing
      */
     foreach ($structure as $tableName => $table) {
       $key = $this->getPrimaryKey($table);
-      if (is_array($table["childre"])) {
+      if (is_array($table["children"])) {
         foreach ($table["children"] as $child) {
           $sql .= $this->generateSqlRelation($tableName, $key, $child["tableName"], $child["childKey"]);
         }
       }
       if (is_array($table["parents"])) {
-        foreach ($table["parents"] as $tableName => $parent) {
+        foreach ($table["parents"] as $parent) {
           $sql .= $this->generateSqlRelation($parent["tableName"], $parent["parentKey"], $tableName, $key);
         }
       }
@@ -295,9 +295,10 @@ class ExportModelProcessing
     if (strlen($parentTable) == 0 || strlen($parentKey) == 0 || strlen($childTable) == 0 || strlen($childForeignKey) == 0) {
       throw new ExportException("An error occurred during the creation of relation between $parentTable and $childTable");
     }
-    $sql = "alter table " . $this->quote . $childTable . $this->quote . "
-            add constraint " . $childTable . "_has_parent_$parentTable FOREIGN KEY (" . $this->quote . $childForeignKey . $this->quote . ")
-            REFERENCES " . $this->quote . $parentTable . $this->quote . "(" .
+    $sql = "ALTER TABLE " . $this->quote . $childTable . $this->quote;
+    $sql .= " ADD CONSTRAINT " . $childTable . "_has_parent_$parentTable".PHP_EOL;
+    $sql .= "FOREIGN KEY (" . $this->quote . $childForeignKey . $this->quote . ")";
+    $sql .= " REFERENCES " . $this->quote . $parentTable . $this->quote . "(" .
       $this->quote . $parentKey . $this->quote . ");" . PHP_EOL;
     return $sql;
   }
