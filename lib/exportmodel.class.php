@@ -113,6 +113,40 @@ class ExportModelProcessing
       }
       $this->structure[$table["tableName"]]["attributes"] = $this->getFieldsFromTable($tablename, $schemaname);
       $this->structure[$table["tableName"]]["description"] = $this->getDescriptionFromTable($tablename, $schemaname);
+      /**
+       * Add the children
+       */
+      foreach ($table["children"] as $child) {
+        $alias = $child["aliasName"];
+        $a_alias = array(
+          "tableName" => $model[$alias]["tableName"],
+          "childKey" => $model[$alias]["parentKey"]
+        );
+        $this->structure[$table["tableName"]]["children"][] = $a_alias;
+      }
+      /**
+       * Add the parents (parameters tables, table nn)
+       */
+      foreach ($table["parameters"] as $param) {
+        $alias = $param["aliasName"];
+        $a_alias = array(
+          "tableName" => $model[$alias]["tableName"],
+          "parentKey" => $model[$alias]["technicalKey"],
+          "fieldName" => $param["fieldName"]
+        );
+        $this->structure[$table["tableName"]]["parents"][] = $a_alias;
+      }
+      /**
+       * Add the second n-n part
+       */
+      if ($table["istablenn"]) {
+        $alias = $table["tablenn"]["tableAlias"];
+        $a_alias = array(
+          "tableName" => $model[$alias]["tableName"],
+          "parentKey" => $model[$alias]["technicalKey"],
+          "fieldName" => $table["tablenn"]["secondaryParentKey"]
+        );
+      }
     }
     return ($this->structure);
   }
@@ -202,11 +236,69 @@ class ExportModelProcessing
       $structure = $this->structure;
     }
     $tables = array();
+    /**
+     * Creation of tables
+     */
     foreach ($structure as $tableName => $table) {
       if (!in_array($tableName, $tables)) {
         $sql .= $this->generateSqlForTable($tableName, $table);
+        $tables[] = $tableName;
       }
     }
+    /**
+     * Creation of relations
+     */
+    foreach ($structure as $tableName => $table) {
+      $key = $this->getPrimaryKey($table);
+      if (is_array($table["childre"])) {
+        foreach ($table["children"] as $child) {
+          $sql .= $this->generateSqlRelation($tableName, $key, $child["tableName"], $child["childKey"]);
+        }
+      }
+      if (is_array($table["parents"])) {
+        foreach ($table["parents"] as $tableName => $parent) {
+          $sql .= $this->generateSqlRelation($parent["tableName"], $parent["parentKey"], $tableName, $key);
+        }
+      }
+    }
+    return $sql;
+  }
+  /**
+   * Get the primary key of a table from structure
+   *
+   * @param array $table
+   * @return string
+   */
+  function getPrimaryKey(array $table): string
+  {
+    $key = "";
+    foreach ($table["attributes"] as $att) {
+      if ($att["key"]) {
+        $key = $att["field"];
+        break;
+      }
+    }
+    return $key;
+  }
+  /**
+   * Generate the sql script for create a relationship between 2 tables
+   *
+   * @param string $parentTable
+   * @param string $parentKey
+   * @param string $childTable
+   * @param string $childForeignKey
+   * @return string
+   */
+  function generateSqlRelation(string $parentTable, string $parentKey, string $childTable, string $childForeignKey): string
+  {
+    $sql = "";
+    if (strlen($parentTable) == 0 || strlen($parentKey) == 0 || strlen($childTable) == 0 || strlen($childForeignKey) == 0) {
+      throw new ExportException("An error occurred during the creation of relation between $parentTable and $childTable");
+    }
+    $sql = "alter table " . $this->quote . $childTable . $this->quote . "
+            add constraint " . $childTable . "_has_parent_$parentTable FOREIGN KEY (" . $this->quote . $childForeignKey . $this->quote . ")
+            REFERENCES " . $this->quote . $parentTable . $this->quote . "(" .
+      $this->quote . $parentKey . $this->quote . ");" . PHP_EOL;
     return $sql;
   }
   /**
