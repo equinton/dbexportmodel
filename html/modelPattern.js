@@ -39,7 +39,7 @@ function patternForm(id, dataId, data = "") {
                         "type": "string",
                     },
                     "parentKey": {
-                        "title": "Foreign key (parent table)",
+                        "title": "Foreign key (to link to the parent table)",
                         "type": "string"
                     },
                     "istable11": {

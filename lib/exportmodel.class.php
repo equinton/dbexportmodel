@@ -111,8 +111,14 @@ class ExportModelProcessing
         $schemaname = $schematable[0];
         $tablename = $schematable[1];
       }
-      $this->structure[$table["tableName"]]["attributes"] = $this->getFieldsFromTable($tablename, $schemaname);
+      $attributes = $this->getFieldsFromTable($tablename, $schemaname);
+      $this->structure[$table["tableName"]]["attributes"] = $attributes;
       $this->structure[$table["tableName"]]["description"] = $this->getDescriptionFromTable($tablename, $schemaname);
+      /**
+       * Get specific fields
+       */
+      $this->structure[$table["tableName"]]["booleanFields"] = $this->getSpecificFields($attributes, "boolean");
+      $this->structure[$table["tableName"]]["binaryFields"] = $this->getSpecificFields($attributes, "bytea");
       /**
        * Add the children
        */
@@ -296,7 +302,7 @@ class ExportModelProcessing
       throw new ExportException("An error occurred during the creation of relation between $parentTable and $childTable");
     }
     $sql = "ALTER TABLE " . $this->quote . $childTable . $this->quote;
-    $sql .= " ADD CONSTRAINT " . $childTable . "_has_parent_$parentTable".PHP_EOL;
+    $sql .= " ADD CONSTRAINT " . $childTable . "_has_parent_$parentTable" . PHP_EOL;
     $sql .= "FOREIGN KEY (" . $this->quote . $childForeignKey . $this->quote . ")";
     $sql .= " REFERENCES " . $this->quote . $parentTable . $this->quote . "(" .
       $this->quote . $parentKey . $this->quote . ");" . PHP_EOL;
@@ -381,8 +387,8 @@ class ExportModelProcessing
   {
     $cols = "";
     $comma = "";
-    foreach ($this->structure[$tableName] as $col) {
-      if ($col["type"] != "bytea") {
+    foreach ($this->structure[$tableName]["attributes"] as $col) {
+      if (!in_array($col["field"], $this->structure[$tableName]["binaryFields"])) {
         $cols .= $comma . $this->quote . $col["field"] . $this->quote;
         $comma = ",";
       }
@@ -390,32 +396,17 @@ class ExportModelProcessing
     return $cols;
   }
   /**
-   * Get the list of binary fields for a table
+   * Get the list of specific fields for a table
    *
-   * @param string $tableName
+   * @param array $tableName
+   * @param string $fieldType
    * @return array
    */
-  function getBinaryFields(string $tableName): array
+  function getSpecificFields(array $attributes, string $fieldType): array
   {
     $fields = array();
-    foreach ($this->structure[$tableName] as $col) {
-      if ($col["type"] == "bytea") {
-        $fields[] = $col["field"];
-      }
-    }
-    return $fields;
-  }
-  /**
-   * Get the list of boolean fields in a table
-   *
-   * @param string $tableName
-   * @return array
-   */
-  function getBooleanFields(string $tableName): array
-  {
-    $fields = array();
-    foreach ($this->structure[$tableName] as $col) {
-      if ($col["type"] == "boolean") {
+    foreach ($attributes as $col) {
+      if ($col["type"] == $fieldType) {
         $fields[] = $col["field"];
       }
     }
@@ -440,7 +431,7 @@ class ExportModelProcessing
     $content = array();
     $args = array();
     if (!$model["isEmpty"] || count($keys) > 0) {
-      $cols = $this->generateListColumns($model["tableName"]);
+      $cols = $this->generateListColumns($tableName);
       $sql = "select $cols from " . $this->quote . $tableName . $this->quote;
       if (count($keys) > 0) {
         $where = " where " . $this->quote . $model["technicalKey"] . $this->quote . " in (";
@@ -471,8 +462,8 @@ class ExportModelProcessing
       /**
        * export the binary data in files
        */
-      $binaryFields = $this->getBinaryFields($model["tableName"]);
-      if (count($binaryFields) > 0) {
+      $binaryFields = $this->structure[$tableName]["binaryFields"];
+      if (is_array($binaryFields)) {
         /**
          * Verify if binary folder exists
          */
@@ -488,8 +479,13 @@ class ExportModelProcessing
               if ($ref) {
                 $filename = $model["tableName"] . "-" . $fieldName . "-" . $row[$model["technicalKey"]] . ".bin";
                 $fb = fopen($this->binaryFolder . "/" . $filename, "wb");
-                fwrite($fb, fread($ref, 0));
+                $dataContent ="";
+                while (!feof($ref)) {  //This looped forever
+                  $dataContent .= fread($ref, 1024);
+              }
+                fwrite($fb, $dataContent);
                 fclose($fb);
+                fclose($ref);
               }
             }
           }
@@ -509,7 +505,11 @@ class ExportModelProcessing
       if (count($model["children"]) > 0) {
         foreach ($content as $k => $row) {
           foreach ($model["children"] as $child) {
-            $content[$k]["children"][$child["aliasName"]] = $this->getTableContent($child["aliasName"], array(), $row[$model["technicalKey"]]);
+            $content[$k]["children"][$child["aliasName"]] = $this->getTableContent(
+              $child["aliasName"],
+              array(),
+              $row[$model["technicalKey"]]
+            );
           }
         }
       }
@@ -576,14 +576,14 @@ class ExportModelProcessing
    * @param string $fieldName
    * @return resource|null
    */
-  function getBlobReference(string $tableName, string $keyName, int $id, string $fieldName): ?resource
+  function getBlobReference(string $tableName, string $keyName, int $id, string $fieldName)
   {
     if ($id > 0) {
       $blobRef = null;
       $sql = "select " . $this->quote . $fieldName . $this->quote . "
           from " . $this->quote . $tableName . $this->quote . "
 			    where " . $this->quote . $keyName . $this->quote  . " = ?";
-      $query = $this->connection->prepare($sql);
+      $query = $this->bdd->prepare($sql);
       $query->execute(array($id));
       if ($query->rowCount() == 1) {
         $query->bindColumn(1, $blobRef, PDO::PARAM_LOB);
