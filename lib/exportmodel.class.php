@@ -26,6 +26,10 @@ class ExportModelProcessing
     $this->db = $db;
   }
 
+  function setDefaultPath(string $path) {
+    $sql = "set search_path = $path";
+    $this->db->exec($sql);
+  }
 
   /**
    * Set the used model
@@ -435,7 +439,7 @@ class ExportModelProcessing
        * export the binary data in files
        */
       $binaryFields = $this->structure[$tableName]["binaryFields"];
-      if (is_array($binaryFields)) {
+      if (count($binaryFields) > 0) {
         /**
          * Verifiy if a business key is defined
          */
@@ -525,14 +529,15 @@ class ExportModelProcessing
    *
    * @param string $sql: request to execute
    * @param array $data: data associated with the request
-   * @return array
+   * @return array|null
    */
-  private function execute(string $sql, array $data = array()): array
+  private function execute(string $sql, array $data = array()): ?array
   {
     if ($this->modeDebug) {
       printr($sql);
       printr($data);
     }
+    $result = null;
     try {
       if ($this->lastSql != $sql) {
         $this->stmt = $this->db->prepare($sql);
@@ -540,12 +545,19 @@ class ExportModelProcessing
       }
       $this->lastResultExec = $this->stmt->execute($data);
       if ($this->lastResultExec) {
-        return $this->stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = $this->stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($this->modeDebug) {
+          test("Result of the request:");
+          printr($result, true);
+        }
+      } else {
+        throw new ExportException("Error when execute the request $sql".phpeol().$this->stmt->errorInfo()[2]);
       }
     } catch (PDOException $e) {
       $this->lastResultExec = false;
       throw new ExportException($e->getMessage());
     }
+    return $result;
   }
   /**
    * Read a binary object in the database and returns the resource file
@@ -584,11 +596,16 @@ class ExportModelProcessing
     $this->db->beginTransaction();
     try {
       foreach ($data as $tableName => $values) {
-        $this->importDataTable($$tableName, $values);
+        $this->importDataTable($tableName, $values);
       }
     } catch (PDOException $e) {
+      $messageError = $this->stmt->errorInfo()[2];
       $this->db->rollBack();
-      throw new ExportException("An error occurred during the database import:" . phpeol() . $e->getMessage());
+      throw new ExportException(
+        "An error occurred during the database import:" . phpeol() .
+        $messageError.phpeol().
+        $e->getMessage()
+      );
     }
     $this->db->commit();
   }
@@ -706,23 +723,30 @@ class ExportModelProcessing
                     from $this->quote$paramTablename$this->quote
                     where $this->quote$paramBusinessKey$this->quote = :businessKey";
           $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parameter[$modelParam["businessKey"]]));
-          $pkey = $pdata[0]["key"];
-          if (!$pkey > 0) {
+          if ($this->modeDebug) {
+            printr($pdata);
+          }
+          $tkey = $pdata[0]["key"];
+          if (!$tkey > 0) {
             /**
              * write the parameter
              */
             unset($parameter[$modelParam["technicalKey"]]);
             try {
-              $pkey = $this->writeData($parameterName, $parameter);
+              $tkey = $this->writeData($parameterName, $parameter);
             } catch (Exception $e) {
-              throw new ExportException(sprintf(_('Erreur d\'enregistrement dans la table de paramètres %1$s pour la valeur %2$s'), $parameterName, $parameter[$modelParam["businessKey"]]));
+              throw new ExportException(
+                "Record error for the parameter table $parameterName for the value " . $parameter[$modelParam["businessKey"]]
+              );
             }
           }
           if ($this->modeDebug) {
-            printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $pkey);
+            printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $tkey);
           }
-          if (!$pkey > 0) {
-            throw new ExportException(sprintf(_("Aucune clé n'a pu être trouvée ou générée pour la table de paramètres %s"), $parameterName));
+          if (!$tkey > 0) {
+            throw new ExportException(
+              "No key was found or generate for the parameter table $parameterName"
+            );
           }
           /**
            * Search the name of the attribute corresponding in the row
@@ -779,9 +803,9 @@ class ExportModelProcessing
    *
    * @param string $tableName: name of the table
    * @param array $data: data of the record
-   * @return integer: technical key generated or updated
+   * @return int|null: technical key generated or updated
    */
-  function writeData(string $tableAlias, array $data): ?int
+  function writeData(string $tableAlias, array $data):?int
   {
     $model = $this->model[$tableAlias];
     $tableName = $model["tableName"];
@@ -789,6 +813,7 @@ class ExportModelProcessing
     $pkeyName = $model["parentKey"];
     $bkeyName = $model["businessKey"];
     $skeyName = $model["tablenn"]["secondaryParentKey"];
+    $newKey = null;
     $dataSql = array();
     $comma = "";
     $mode = "insert";
@@ -831,7 +856,7 @@ class ExportModelProcessing
       $cols = "(";
       $values = "(";
       foreach ($data as $field => $value) {
-        if (in_array($field, $model["booleanFields"]) && !$value) {
+        if (is_array($model["booleanFields"]) && in_array($field, $model["booleanFields"]) && !$value) {
           $value = "false";
         }
         if (!($model["istablenn"] == 1 && $field == $model["tablenn"]["tableAlias"])) {
@@ -846,8 +871,12 @@ class ExportModelProcessing
       $sql = "insert into $this->quote$tableName$this->quote $cols values $values $returning";
     }
     $result = $this->execute($sql, $dataSql);
+    if ($this->modeDebug) {
+      test("Result of insert into $tableName:");
+      printr($result);
+    }
     if ($model["istablenn"] == 1) {
-      $newkey = null;
+      $newKey = null;
     } else if ($mode == "insert") {
       $newKey = $result[0][$tkeyName];
     } else {
@@ -858,16 +887,17 @@ class ExportModelProcessing
      */
     if ($newKey && is_array($model["binaryFields"])) {
       if (strlen($data[$bkeyName]) == 0) {
-        throw new ExportException (
+        throw new ExportException(
           "The businessKey is empty for the table $tableName and the binary data can't be imported"
         );
       }
       if (!is_dir($this->binaryFolder)) {
-        throw new ExportException (
-          "The folder that contains binary files don't exists (".$this->binaryFolder.")"
-      );
+        throw new ExportException(
+          "The folder that contains binary files don't exists (" . $this->binaryFolder . ")"
+        );
+      }
       foreach ($model["binaryFields"] as $binaryField) {
-        $filename = $this->binaryFolder."/".$tableName."-".$binaryField."-".$data[$bkeyName].".bin";
+        $filename = $this->binaryFolder . "/" . $tableName . "-" . $binaryField . "-" . $data[$bkeyName] . ".bin";
         if (!file_exists($filename)) {
           throw new ExportException(
             "The file $filename don't exists"
@@ -879,7 +909,7 @@ class ExportModelProcessing
         $sql .= " where $this->quote$tkeyName$this->quote = ?";
         $this->db->prepare($sql);
         $this->db->bindColumn(1, $fp, PDO::PARAM_LOB);
-        $this->db->bindColumn (2, $newKey);
+        $this->db->bindColumn(2, $newKey);
         $this->db->execute();
       }
     }

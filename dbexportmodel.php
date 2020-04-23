@@ -61,6 +61,28 @@ try {
     $root = "";
     $structure = "";
 
+
+
+    /**
+     * Processing args
+     */
+    for ($i = 1; $i <= count($argv); $i++) {
+      $a_arg = explode("=", $argv[$i]);
+      $arg = substr($a_arg[0], 2);
+      if (strlen($a_arg[1]) > 0) {
+        $$arg = $a_arg[1];
+      } else {
+        if ($arg == "zip") {
+          $zipped = true;
+        } else if (in_array($arg, array("export", "import", "create", "structure"))) {
+          $action = $arg;
+        } else if ($arg == "debug") {
+          $modeDebug = true;
+        }
+      }
+    }
+
+
     /**
      * Database connection
      */
@@ -73,26 +95,21 @@ try {
 
     if ($isConnected) {
       $export = new ExportModelProcessing($db);
+      $export->modeDebug = $modeDebug;
+      if ($modeDebug) {
+        printr("dsn:" . $dbparam[$sectionName]["dsn"]);
+        printr("login:" . $dbparam[$sectionName]["login"]);
+        printr("schemas:".$dbparam[$sectionName]["schema"]);
+      }
       /**
-       * Processing args
+       * Set the default path
        */
-      for ($i = 1; $i <= count($argv); $i++) {
-        $a_arg = explode("=", $argv[$i]);
-        $arg = substr($a_arg[0], 2);
-        if (strlen($a_arg[1]) > 0) {
-          $$arg = $a_arg[1];
-        } else {
-          if ($arg == "zip") {
-            $zipped = true;
-          } else if (in_array($arg, array("export", "import", "create", "structure"))) {
-            $action = $arg;
-          } else if ($arg == "debug") {
-            $modeDebug = true;
-          }
-        }
+      if (strlen($dbparam[$sectionName]["schema"]) > 0) {
+        $export->setDefaultPath($dbparam[$sectionName]["schema"]);
       }
     }
   }
+
   /**
    * Set the binary folder
    */
@@ -176,7 +193,7 @@ try {
        */
       if (!$zipped) {
         file_put_contents($datafile, json_encode($dexport));
-        $message->set("Data are been recorded in the file $dexport. Where applicable, the binary data are stored in the folder $binaryfolder");
+        $message->set("Data are been recorded in the file $datafile. Where applicable, the binary data are stored in the folder $binaryfolder");
       } else {
         file_put_contents($root . $datafile, json_encode($dexport));
         $zip = new ZipArchive;
@@ -216,7 +233,7 @@ try {
     case "import":
       if ($zipped) {
         $zip = new ZipArchive();
-        if (!$zip->open($zipfile, ZipArchive::RDONLY)) {
+        if (!$zip->open($zipfile)) {
           throw new ExportException("The file $zipfile can't be opened");
         }
         $umask = umask();

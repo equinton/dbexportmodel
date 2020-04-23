@@ -1,4 +1,5 @@
 <?php
+$testOccurrence = 0;
 /**
  * Delete recursively all files and directories into a directory
  *
@@ -41,7 +42,7 @@ function cleanFolder(string $foldername) {
           echo $tableau;
         }
       }
-      phpeol();
+      echo phpeol();
   }
   /**
    * Generate a line return with <br> or PHP_EOL
@@ -50,8 +51,16 @@ function cleanFolder(string $foldername) {
    */
   function phpeol () {
     if (PHP_SAPI == "cli") {
-      echo PHP_EOL;
+      return PHP_EOL;
     } else {
-      echo "<br>";
+      return "<br>";
     }
   }
+
+  function test($content = "")
+{
+    global $testOccurrence;
+    echo "test $testOccurrence: $content ".phpeol();
+
+    $testOccurrence ++;
+}
