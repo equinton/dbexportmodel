@@ -14,6 +14,7 @@
 error_reporting(E_ERROR | E_WARNING | E_PARSE);
 require_once 'lib/exportmodel.class.php';
 require_once 'lib/message.php';
+require_once 'lib/functions.php';
 
 
 $paramfile = "param.ini";
@@ -46,11 +47,12 @@ try {
     $isConnected = false;
     $structurename = "dbexportstructure.json";
     $description = "dbexportdescription.json";
-    $data = "dbexportdata.json";
+    $datafile = "dbexportdata.json";
     $keyfile = "dbexportkeys.json";
-    $filezip = "dbexport.zip";
+    $zipfile = "dbexport.zip";
     $binaryfolder = "binary";
     $sqlfile = "dbcreate.sql";
+    $readmefile = "lib/readme.md";
     $schemas = $dbparam[$sectionName]["schema"];
     $zipped = false;
     $action = "";
@@ -63,14 +65,14 @@ try {
      * Database connection
      */
     try {
-      $bdd = new PDO($dbparam[$sectionName]["dsn"], $dbparam[$sectionName]["login"], $dbparam[$sectionName]["passwd"]);
+      $db = new PDO($dbparam[$sectionName]["dsn"], $dbparam[$sectionName]["login"], $dbparam[$sectionName]["passwd"]);
       $isConnected = true;
     } catch (PDOException $e) {
       $message->set($e->getMessage());
     }
 
     if ($isConnected) {
-      $export = new ExportModelProcessing($bdd, false);
+      $export = new ExportModelProcessing($db);
       /**
        * Processing args
        */
@@ -109,7 +111,7 @@ try {
        * Extract the content of the archive
        */
       $zipImport = new ZipArchive();
-      $zi = $zipImport->open($filezip);
+      $zi = $zipImport->open($zipfile);
       if ($zi === true) {
         $zipImport->extractTo($tempDir);
       } else {
@@ -173,30 +175,33 @@ try {
        * Write datafile
        */
       if (!$zipped) {
-        file_put_contents($data, json_encode($dexport));
+        file_put_contents($datafile, json_encode($dexport));
         $message->set("Data are been recorded in the file $dexport. Where applicable, the binary data are stored in the folder $binaryfolder");
       } else {
-        file_put_contents($root . $data, json_encode($dexport));
-        $zipExport = new ZipArchive;
-        $zipExport->open($filezip, ZipArchive::CREATE);
-        $zipExport->addFile($structurename, basename($structurename));
-        $zipExport->addFile($description, basename($description));
-        $zipExport->addFile($root . $data, basename($data));
+        file_put_contents($root . $datafile, json_encode($dexport));
+        $zip = new ZipArchive;
+        $zip->open($zipfile, ZipArchive::CREATE);
+        $zip->addFile($structurename, basename($structurename));
+        $zip->addFile($description, basename($description));
+        $zip->addFile($root . $datafile, basename($datafile));
+        if (file_exists($readmefile)) {
+          $zip->addFile($readmefile, basename($readmefile));
+        }
         /**
          * Add binary files
          */
         if (is_dir($binaryfolder)) {
           foreach (scandir($binaryfolder) as $bf) {
             if (is_file($binaryfolder . "/" . $bf) && substr($bf, -3) == "bin") {
-              $zipExport->addFile($binaryfolder . "/" . $bf, "binary/" . $bf);
+              $zip->addFile($binaryfolder . "/" . $bf, "binary/" . $bf);
             }
           }
         }
-        $zipExport->close();
+        $zip->close();
         /**
          * Purge of files
          */
-        unlink($root . $data);
+        unlink($root . $datafile);
         if (is_dir($binaryfolder)) {
           foreach (scandir($binaryfolder) as $bf) {
             if (is_file($binaryfolder . "/" . $bf) && substr($bf, -3) == "bin") {
@@ -205,12 +210,41 @@ try {
           }
           rmdir($binaryfolder);
         }
-        $message->set("Data are available in the zip file $filezip");
+        $message->set("Data are available in the zip file $zipfile");
       }
       break;
     case "import":
       if ($zipped) {
-        $zipExport = new ZipArchive();
+        $zip = new ZipArchive();
+        if (!$zip->open($zipfile, ZipArchive::RDONLY)) {
+          throw new ExportException("The file $zipfile can't be opened");
+        }
+        $umask = umask();
+        umask(027);
+        if (!$zip->extractTo($tempDir)) {
+          throw new ExportException("The files into $zipfile can't be extracted to the folder $tempDir");
+        };
+        umask($umask);
+        $zip->close();
+
+        /**
+         * Treatment of the import
+         */
+        if (!is_file($root . $datafile)) {
+          throw new ExportException("The file $datafile don't exists");
+        }
+        $data = json_decode(file_get_contents($root . $datafile), true);
+        if (!is_array($data)) {
+          throw new ExportException("The file $root" . "$datafile don't contains data");
+        }
+        $export->importData($data);
+        $message->set("Import done");
+        if ($zipped) {
+          /**
+           * clean temp folder
+           */
+          cleanFolder($tempDir);
+        }
       }
       break;
     case "structure":

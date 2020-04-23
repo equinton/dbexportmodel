@@ -21,39 +21,11 @@ class ExportModelProcessing
    * @param PDO $bdd: database connection object
    * @param bool $isWeb: false if run from command line
    */
-  function __construct(PDO $bdd, bool $isWeb = true)
+  function __construct(PDO $db)
   {
-    $this->bdd = $bdd;
-    $this->isWeb = $isWeb;
+    $this->db = $db;
   }
-  /**
-   * Display the content of a variable
-   *
-   * @param any $tableau
-   * @param integer $mode_dump
-   * @param bool $force
-   * @return void
-   */
-  private function printr($tableau, $mode_dump = 0, $force = false)
-  {
-    global $APPLI_modeDeveloppement;
-    if ($APPLI_modeDeveloppement || $force) {
-      if ($mode_dump == 1) {
-        var_dump($tableau);
-      } else {
-        if (is_array($tableau)) {
-          print_r($tableau);
-        } else {
-          echo $tableau;
-        }
-      }
-      if ($this->isWeb) {
-        echo "<br>";
-      } else {
-        echo PHP_EOL;
-      }
-    }
-  }
+
 
   /**
    * Set the used model
@@ -323,7 +295,7 @@ class ExportModelProcessing
      * Add the comment of the table
      */
     if (strlen($table["description"]) > 0) {
-      $comment = "comment on table " . $this->quote . $tableName . $this->quote . " is " . $this->bdd->quote($table["description"]) . ";" . PHP_EOL;
+      $comment = "comment on table " . $this->quote . $tableName . $this->quote . " is " . $this->db->quote($table["description"]) . ";" . PHP_EOL;
     }
     $script = "create table " . $this->quote . $tableName . $this->quote . " (" . PHP_EOL;
     $nbAtt = count($table["attributes"]) - 1;
@@ -347,7 +319,7 @@ class ExportModelProcessing
        * Add the comment on the column
        */
       if (strlen($attr["comment"]) > 0) {
-        $comment .= "comment on column " . $this->quote . $tableName . $this->quote . "." . $this->quote . $attr["field"] . $this->quote . " is " . $this->bdd->quote($attr["comment"]) . ";" . PHP_EOL;
+        $comment .= "comment on column " . $this->quote . $tableName . $this->quote . "." . $this->quote . $attr["field"] . $this->quote . " is " . $this->db->quote($attr["comment"]) . ";" . PHP_EOL;
       }
       $script .= PHP_EOL;
     }
@@ -465,6 +437,14 @@ class ExportModelProcessing
       $binaryFields = $this->structure[$tableName]["binaryFields"];
       if (is_array($binaryFields)) {
         /**
+         * Verifiy if a business key is defined
+         */
+        if (strlen($model["businessKey"]) == 0) {
+          throw new ExportException(
+            "The businessKey is not defined for table $tableName, it's necessary to export the binary fields"
+          );
+        }
+        /**
          * Verify if binary folder exists
          */
         if (!is_dir($this->binaryFolder)) {
@@ -477,12 +457,12 @@ class ExportModelProcessing
             if (strlen($row[$model["technicalKey"]]) > 0) {
               $ref = $this->getBlobReference($tableName, $model["technicalKey"], $row[$model["technicalKey"]], $fieldName);
               if ($ref) {
-                $filename = $model["tableName"] . "-" . $fieldName . "-" . $row[$model["technicalKey"]] . ".bin";
+                $filename = $model["tableName"] . "-" . $fieldName . "-" . $row[$model["businessKey"]] . ".bin";
                 $fb = fopen($this->binaryFolder . "/" . $filename, "wb");
-                $dataContent ="";
-                while (!feof($ref)) {  //This looped forever
+                $dataContent = "";
+                while (!feof($ref)) {
                   $dataContent .= fread($ref, 1024);
-              }
+                }
                 fwrite($fb, $dataContent);
                 fclose($fb);
                 fclose($ref);
@@ -550,12 +530,12 @@ class ExportModelProcessing
   private function execute(string $sql, array $data = array()): array
   {
     if ($this->modeDebug) {
-      $this->printr($sql);
-      $this->printr($data);
+      printr($sql);
+      printr($data);
     }
     try {
       if ($this->lastSql != $sql) {
-        $this->stmt = $this->bdd->prepare($sql);
+        $this->stmt = $this->db->prepare($sql);
         $this->lastSql = $sql;
       }
       $this->lastResultExec = $this->stmt->execute($data);
@@ -583,7 +563,7 @@ class ExportModelProcessing
       $sql = "select " . $this->quote . $fieldName . $this->quote . "
           from " . $this->quote . $tableName . $this->quote . "
 			    where " . $this->quote . $keyName . $this->quote  . " = ?";
-      $query = $this->bdd->prepare($sql);
+      $query = $this->db->prepare($sql);
       $query->execute(array($id));
       if ($query->rowCount() == 1) {
         $query->bindColumn(1, $blobRef, PDO::PARAM_LOB);
@@ -592,6 +572,25 @@ class ExportModelProcessing
       }
     }
     return null;
+  }
+  /**
+   * Import data into the database
+   *
+   * @param array $data
+   * @return void
+   */
+  function importData(array $data)
+  {
+    $this->db->beginTransaction();
+    try {
+      foreach ($data as $tableName => $values) {
+        $this->importDataTable($$tableName, $values);
+      }
+    } catch (PDOException $e) {
+      $this->db->rollBack();
+      throw new ExportException("An error occurred during the database import:" . phpeol() . $e->getMessage());
+    }
+    $this->db->commit();
   }
 
   /**
@@ -610,7 +609,7 @@ class ExportModelProcessing
       throw new ExportException(sprintf(_("Aucune description trouvée pour l'alias de table %s dans le fichier de paramètres"), $tableAlias));
     }
     /**
-     * prepare sql request for search key
+     * prepare sql request for searching key
      */
     $model = $this->model[$tableAlias];
     $tableName = $model["tableName"];
@@ -633,7 +632,9 @@ class ExportModelProcessing
       $tableAlias2 = $model["tablenn"]["tableAlias"];
       $model2 = $this->model[$tableAlias2];
       if (count($model2) == 0) {
-        throw new ExportException(sprintf(_("Le modèle ne contient pas la description de la table %s"), $model["tablenn"]["tableAlias"]));
+        throw new ExportException(
+          "The model don't contains the destcription of the table " . $model["tablenn"]["tableAlias"]
+        );
       }
       $tableName2 = $model2["tableName"];
       $tkeyName2 = $model2["technicalKey"];
@@ -693,7 +694,7 @@ class ExportModelProcessing
         foreach ($row["parameters"] as $parameterName => $parameter) {
           $modelParam = $this->model[$parameterName];
           if (count($modelParam) == 0) {
-            throw new ExportException(sprintf(_("L'alias %s n'a pas été décrit dans le modèle"), $parameterName));
+            throw new ExportException("The alias $parameterName was not described in the model");
           }
           /**
            * Search the id from the parameter
@@ -718,7 +719,7 @@ class ExportModelProcessing
             }
           }
           if ($this->modeDebug) {
-            $this->printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $pkey);
+            printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $pkey);
           }
           if (!$pkey > 0) {
             throw new ExportException(sprintf(_("Aucune clé n'a pu être trouvée ou générée pour la table de paramètres %s"), $parameterName));
@@ -786,6 +787,7 @@ class ExportModelProcessing
     $tableName = $model["tableName"];
     $tkeyName = $model["technicalKey"];
     $pkeyName = $model["parentKey"];
+    $bkeyName = $model["businessKey"];
     $skeyName = $model["tablenn"]["secondaryParentKey"];
     $dataSql = array();
     $comma = "";
@@ -816,7 +818,9 @@ class ExportModelProcessing
         $dataSql[$tkeyName] = $data[$tkeyName];
       }
       if (!isset($where)) {
-        throw new ExportException(sprintf(_("la clause where n'a pu être construite pour la table %s"), $tableName));
+        throw new ExportException(
+          "The where clause can't be construct for the table $tableName"
+        );
       }
       $sql .= $where;
     } else {
@@ -848,6 +852,36 @@ class ExportModelProcessing
       $newKey = $result[0][$tkeyName];
     } else {
       $newKey = $data[$tkeyName];
+    }
+    /**
+     * Get the binary data
+     */
+    if ($newKey && is_array($model["binaryFields"])) {
+      if (strlen($data[$bkeyName]) == 0) {
+        throw new ExportException (
+          "The businessKey is empty for the table $tableName and the binary data can't be imported"
+        );
+      }
+      if (!is_dir($this->binaryFolder)) {
+        throw new ExportException (
+          "The folder that contains binary files don't exists (".$this->binaryFolder.")"
+      );
+      foreach ($model["binaryFields"] as $binaryField) {
+        $filename = $this->binaryFolder."/".$tableName."-".$binaryField."-".$data[$bkeyName].".bin";
+        if (!file_exists($filename)) {
+          throw new ExportException(
+            "The file $filename don't exists"
+          );
+        }
+        $fp = fopen($filename, 'rb');
+        $sql = "update  $this->quote$tableName$this->quote set ";
+        $sql .= "$this->quote$binaryField$this->quote = ?";
+        $sql .= " where $this->quote$tkeyName$this->quote = ?";
+        $this->db->prepare($sql);
+        $this->db->bindColumn(1, $fp, PDO::PARAM_LOB);
+        $this->db->bindColumn (2, $newKey);
+        $this->db->execute();
+      }
     }
     return $newKey;
   }
