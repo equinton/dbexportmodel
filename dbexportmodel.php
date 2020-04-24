@@ -99,7 +99,7 @@ try {
       if ($modeDebug) {
         printr("dsn:" . $dbparam[$sectionName]["dsn"]);
         printr("login:" . $dbparam[$sectionName]["login"]);
-        printr("schemas:".$dbparam[$sectionName]["schema"]);
+        printr("schemas:" . $dbparam[$sectionName]["schema"]);
       }
       /**
        * Set the default path
@@ -136,6 +136,9 @@ try {
       }
     }
     $root = $tempDir . "/";
+    if ($modeDebug) {
+      echo "Initialisation of zip file done" . phpeol();
+    }
   }
   /**
    * Open the structure and the description
@@ -147,6 +150,9 @@ try {
   $fd = file_get_contents($description);
   if (!$fd) {
     throw new ExportException("The file $description can't be read");
+  }
+  if ($modeDebug) {
+    echo "File $description loaded" . phpeol();
   }
   $export->initModel(json_decode($fd, true));
   if ($action != "structure") {
@@ -166,6 +172,9 @@ try {
       }
       $export->initStructure($structure);
     }
+    if ($modeDebug) {
+      echo "File $structurename loaded" . phpeol();
+    }
   }
 
   switch ($action) {
@@ -175,10 +184,16 @@ try {
        */
       if (file_exists($keyfile)) {
         $fk = json_decode(file_get_contents($keyfile), true);
+        if ($modeDebug) {
+          echo "File $keyfile loaded" . phpeol();
+        }
       }
       $primaryTables = $export->getListPrimaryTables();
       $dexport = array();
       foreach ($export->getListPrimaryTables() as $key => $table) {
+        if ($modeDebug) {
+          echo "Treatment of $table..." . phpeol();
+        }
         if ($key == 0 && count($fk) > 0) {
           /**
            * set the list of records for the first item
@@ -195,6 +210,9 @@ try {
         file_put_contents($datafile, json_encode($dexport));
         $message->set("Data are been recorded in the file $datafile. Where applicable, the binary data are stored in the folder $binaryfolder");
       } else {
+        if ($modeDebug) {
+          echo "Create the zipfile" . phpeol();
+        }
         file_put_contents($root . $datafile, json_encode($dexport));
         $zip = new ZipArchive;
         $zip->open($zipfile, ZipArchive::CREATE);
@@ -232,6 +250,9 @@ try {
       break;
     case "import":
       if ($zipped) {
+        if ($modeDebug) {
+          echo "Opening the file $zipfile" . phpeol();
+        }
         $zip = new ZipArchive();
         if (!$zip->open($zipfile)) {
           throw new ExportException("The file $zipfile can't be opened");
@@ -243,25 +264,30 @@ try {
         };
         umask($umask);
         $zip->close();
-
+      }
+      /**
+       * Treatment of the import
+       */
+      if (!is_file($root . $datafile)) {
+        throw new ExportException("The file $datafile don't exists");
+      }
+      $data = json_decode(file_get_contents($root . $datafile), true);
+      if (!is_array($data)) {
+        throw new ExportException("The file $root" . "$datafile don't contains data");
+      }
+      if ($modeDebug) {
+        echo "Importing data..." . phpeol();
+      }
+      $export->importData($data);
+      $message->set("Import done");
+      if ($zipped) {
         /**
-         * Treatment of the import
+         * clean temp folder
          */
-        if (!is_file($root . $datafile)) {
-          throw new ExportException("The file $datafile don't exists");
+        if ($modeDebug) {
+          echo "Cleaning temporary files create from zipfile..." . phpeol();
         }
-        $data = json_decode(file_get_contents($root . $datafile), true);
-        if (!is_array($data)) {
-          throw new ExportException("The file $root" . "$datafile don't contains data");
-        }
-        $export->importData($data);
-        $message->set("Import done");
-        if ($zipped) {
-          /**
-           * clean temp folder
-           */
-          cleanFolder($tempDir);
-        }
+        cleanFolder($tempDir);
       }
       break;
     case "structure":

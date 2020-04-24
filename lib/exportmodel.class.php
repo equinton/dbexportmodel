@@ -26,7 +26,8 @@ class ExportModelProcessing
     $this->db = $db;
   }
 
-  function setDefaultPath(string $path) {
+  function setDefaultPath(string $path)
+  {
     $sql = "set search_path = $path";
     $this->db->exec($sql);
   }
@@ -239,7 +240,7 @@ class ExportModelProcessing
       }
       if (is_array($table["parents"])) {
         foreach ($table["parents"] as $parent) {
-          $sql .= $this->generateSqlRelation($parent["tableName"], $parent["parentKey"], $tableName, $key);
+          $sql .= $this->generateSqlRelation($parent["tableName"], $parent["parentKey"], $tableName, $parent["fieldName"]);
         }
       }
     }
@@ -541,17 +542,23 @@ class ExportModelProcessing
     try {
       if ($this->lastSql != $sql) {
         $this->stmt = $this->db->prepare($sql);
+        if (!$this->stmt) {
+          throw new ExportException("This request can't be prepared:" . phpeol() . $sql);
+        }
         $this->lastSql = $sql;
       }
       $this->lastResultExec = $this->stmt->execute($data);
       if ($this->lastResultExec) {
         $result = $this->stmt->fetchAll(PDO::FETCH_ASSOC);
-        if ($this->modeDebug) {
-          test("Result of the request:");
-          printr($result, true);
-        }
       } else {
-        throw new ExportException("Error when execute the request $sql".phpeol().$this->stmt->errorInfo()[2]);
+        $sdata = "";
+        foreach ($data as $key => $value) {
+          $sdata .= "$key:$value" . phpeol();
+        }
+        throw new ExportException("Error when execute the request" . phpeol()
+          . $sql . phpeol()
+          . $sdata
+          . $this->stmt->errorInfo()[2]);
       }
     } catch (PDOException $e) {
       $this->lastResultExec = false;
@@ -603,8 +610,8 @@ class ExportModelProcessing
       $this->db->rollBack();
       throw new ExportException(
         "An error occurred during the database import:" . phpeol() .
-        $messageError.phpeol().
-        $e->getMessage()
+          $messageError . phpeol() .
+          $e->getMessage()
       );
     }
     $this->db->commit();
@@ -624,6 +631,9 @@ class ExportModelProcessing
   {
     if (!isset($this->model[$tableAlias])) {
       throw new ExportException(sprintf(_("Aucune description trouvée pour l'alias de table %s dans le fichier de paramètres"), $tableAlias));
+    }
+    if ($this->modeDebug) {
+      printr("Import into $tableAlias");
     }
     /**
      * prepare sql request for searching key
@@ -645,6 +655,9 @@ class ExportModelProcessing
       $sqlDeleteFromParent = "delete $this->quote$tableName$this->quote where $this->quote$pkeyName$this->quote = :parent";
       $this->execute($sqlDeleteFromParent, array("parent" => $parentKey));
     }
+    if ($this->modeDebug) {
+      printr("Treatment of " . $tableAlias . " tablename:" . $tableName . " businessKey:" . $bkeyName . " technicalKey:" . $tkeyName . " parentKey:" . $pkeyName);
+    }
     if ($model["istablenn"] == 1) {
       $tableAlias2 = $model["tablenn"]["tableAlias"];
       $model2 = $this->model[$tableAlias2];
@@ -664,20 +677,19 @@ class ExportModelProcessing
       $this->execute($sqlDelete, array("parentKey" => $parentKey));
     }
     foreach ($data as $row) {
+
       if (strlen($row[$tkeyName]) > 0 || ($model["istablenn"] == 1 && strlen($row[$pkeyName]) > 0)) {
         /**
          * search for preexisting record
          */
-        if ($this->modeDebug) {
-          test($tableName . " key:" . $row[$tkeyName]);
-          test($tableAlias . " tablename:" . $tableName . " businessKey:" . $bkeyName . " technicalKey:" . $tkeyName . " parentKey:" . $pkeyName);
-        }
         if ($isBusiness && strlen($row[$bkeyName]) > 0) {
           $previousData = $this->execute($sqlSearchKey, array("businessKey" => $row[$bkeyName]));
           if ($previousData[0]["key"] > 0) {
             $row[$tkeyName] = $previousData[0]["key"];
           } else {
-            unset($row[$tkeyName]);
+            if ($tkeyName != $bkeyName) {
+              unset($row[$tkeyName]);
+            }
           }
         } else {
           unset($row[$tkeyName]);
@@ -723,17 +735,16 @@ class ExportModelProcessing
                     from $this->quote$paramTablename$this->quote
                     where $this->quote$paramBusinessKey$this->quote = :businessKey";
           $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parameter[$modelParam["businessKey"]]));
-          if ($this->modeDebug) {
-            printr($pdata);
-          }
-          $tkey = $pdata[0]["key"];
-          if (!$tkey > 0) {
+          $ptkey = $pdata[0]["key"];
+          if (!strlen($ptkey) > 0) {
             /**
              * write the parameter
              */
-            unset($parameter[$modelParam["technicalKey"]]);
+            if ($modelParam["technicalKey"] != $modelParam["businessKey"]) {
+              unset($parameter[$modelParam["technicalKey"]]);
+            }
             try {
-              $tkey = $this->writeData($parameterName, $parameter);
+              $ptkey = $this->writeData($parameterName, $parameter);
             } catch (Exception $e) {
               throw new ExportException(
                 "Record error for the parameter table $parameterName for the value " . $parameter[$modelParam["businessKey"]]
@@ -741,9 +752,9 @@ class ExportModelProcessing
             }
           }
           if ($this->modeDebug) {
-            printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $tkey);
+            printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $ptkey);
           }
-          if (!$tkey > 0) {
+          if (!strlen($ptkey) > 0) {
             throw new ExportException(
               "No key was found or generate for the parameter table $parameterName"
             );
@@ -761,7 +772,7 @@ class ExportModelProcessing
           if (strlen($fieldName) == 0) {
             throw new ExportException(sprintf(_("Erreur inattendue : impossible de trouver le nom du champ correspondant à la table de paramètres %s"), $parameterName));
           }
-          $row[$fieldName] = $pkey;
+          $row[$fieldName] = $ptkey;
         }
         /**
          * Set values
@@ -781,10 +792,13 @@ class ExportModelProcessing
         unset($row["children"]);
         unset($row["parameters"]);
         $id = $this->writeData($tableAlias, $row);
+        if ($this->modeDebug) {
+          printr("Recorded $tableAlias - id: $id");
+        }
         /**
          * Record the children
          */
-        if ($id > 0) {
+        if ($id > 0 && is_array($children)) {
           foreach ($children as $tableChield => $child) {
             if (count($child) > 0) {
               if (!isset($child["isStrict"])) {
@@ -805,7 +819,7 @@ class ExportModelProcessing
    * @param array $data: data of the record
    * @return int|null: technical key generated or updated
    */
-  function writeData(string $tableAlias, array $data):?int
+  function writeData(string $tableAlias, array $data): ?int
   {
     $model = $this->model[$tableAlias];
     $tableName = $model["tableName"];
@@ -818,7 +832,17 @@ class ExportModelProcessing
     $comma = "";
     $mode = "insert";
     if ($data[$tkeyName] > 0) {
-      $mode = "update";
+      /**
+       * Search if the record exists
+       */
+      $sql = "select " . $this->quote . $tkeyName . $this->quote
+        . " as key from " . $this->quote . $tableName . $this->quote
+        . " where " . $this->quote . $tkeyName . $this->quote
+        . " = :key";
+      $result = $this->execute($sql, array("key" => $data[$tkeyName]));
+      if (strlen($result[0]["key"]) > 0) {
+        $mode = "update";
+      }
     }
     $model["istablenn"] == 1 ? $returning = "" : $returning = " RETURNING $tkeyName";
     /**
@@ -827,7 +851,7 @@ class ExportModelProcessing
     if ($mode == "update") {
       $sql = "update $this->quote$tableName$this->quote set ";
       foreach ($data as $field => $value) {
-        if (in_array($field, $model["booleanFields"]) && !$value) {
+        if (is_array($model["booleanFields"]) && in_array($field, $model["booleanFields"]) && !$value) {
           $value = "false";
         }
         if ($field != $tkeyName) {
@@ -871,10 +895,6 @@ class ExportModelProcessing
       $sql = "insert into $this->quote$tableName$this->quote $cols values $values $returning";
     }
     $result = $this->execute($sql, $dataSql);
-    if ($this->modeDebug) {
-      test("Result of insert into $tableName:");
-      printr($result);
-    }
     if ($model["istablenn"] == 1) {
       $newKey = null;
     } else if ($mode == "insert") {
