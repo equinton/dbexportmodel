@@ -540,13 +540,7 @@ class ExportModelProcessing
     }
     $result = null;
     try {
-      if ($this->lastSql != $sql) {
-        $this->stmt = $this->db->prepare($sql);
-        if (!$this->stmt) {
-          throw new ExportException("This request can't be prepared:" . phpeol() . $sql);
-        }
-        $this->lastSql = $sql;
-      }
+      $this->prepare($sql);
       $this->lastResultExec = $this->stmt->execute($data);
       if ($this->lastResultExec) {
         $result = $this->stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -566,6 +560,24 @@ class ExportModelProcessing
     }
     return $result;
   }
+  /**
+   * Prepare the statement of PDO connection
+   * only if the sql value change
+   *
+   * @param string $sql
+   * @return void
+   */
+  private function prepare(string $sql)
+  {
+    if ($this->lastSql != $sql) {
+      $this->stmt = $this->db->prepare($sql);
+      if (!$this->stmt) {
+        throw new ExportException("This request can't be prepared:" . phpeol() . $sql);
+      }
+      $this->lastSql = $sql;
+    }
+  }
+
   /**
    * Read a binary object in the database and returns the resource file
    *
@@ -823,6 +835,10 @@ class ExportModelProcessing
   {
     $model = $this->model[$tableAlias];
     $tableName = $model["tableName"];
+    $structure = $this->structure[$tableName];
+    if (!is_array($structure) || count($structure) == 0) {
+      throw new ExportException("The structure of the table $tableName is unknown");
+    }
     $tkeyName = $model["technicalKey"];
     $pkeyName = $model["parentKey"];
     $bkeyName = $model["businessKey"];
@@ -851,7 +867,7 @@ class ExportModelProcessing
     if ($mode == "update") {
       $sql = "update $this->quote$tableName$this->quote set ";
       foreach ($data as $field => $value) {
-        if (is_array($model["booleanFields"]) && in_array($field, $model["booleanFields"]) && !$value) {
+        if (is_array($structure["booleanFields"]) && in_array($field, $structure["booleanFields"]) && !$value) {
           $value = "false";
         }
         if ($field != $tkeyName) {
@@ -905,8 +921,14 @@ class ExportModelProcessing
     /**
      * Get the binary data
      */
-    if ($newKey && is_array($model["binaryFields"])) {
-      if (strlen($data[$bkeyName]) == 0) {
+    if (
+      strlen($newKey) > 0
+      && is_array($structure["binaryFields"])
+      && count($structure["binaryFields"]) > 0
+    ) {
+      if (
+        strlen($data[$bkeyName]) == 0
+      ) {
         throw new ExportException(
           "The businessKey is empty for the table $tableName and the binary data can't be imported"
         );
@@ -916,21 +938,25 @@ class ExportModelProcessing
           "The folder that contains binary files don't exists (" . $this->binaryFolder . ")"
         );
       }
-      foreach ($model["binaryFields"] as $binaryField) {
+      foreach ($structure["binaryFields"] as $binaryField) {
         $filename = $this->binaryFolder . "/" . $tableName . "-" . $binaryField . "-" . $data[$bkeyName] . ".bin";
-        if (!file_exists($filename)) {
-          throw new ExportException(
-            "The file $filename don't exists"
-          );
+        if (file_exists($filename)) {
+          $fp = fopen($filename, 'rb');
+          if (!$fp) {
+            throw new ExportException("The file $filename can't be opened");
+          }
+          $sql = "update  $this->quote$tableName$this->quote set ";
+          $sql .= "$this->quote$binaryField$this->quote = :binaryFile";
+          $sql .= " where $this->quote$tkeyName$this->quote = :key";
+          $this->prepare($sql);
+          $this->stmt->bindParam(":binaryFile", $fp, PDO::PARAM_LOB);
+          $this->stmt->bindParam(":key", $newKey);
+          if (!$this->stmt->execute()) {
+            throw new ExportException("Error when execute the request" . phpeol()
+              . $sql . phpeol()
+              . $this->stmt->errorInfo()[2]);
+          };
         }
-        $fp = fopen($filename, 'rb');
-        $sql = "update  $this->quote$tableName$this->quote set ";
-        $sql .= "$this->quote$binaryField$this->quote = ?";
-        $sql .= " where $this->quote$tkeyName$this->quote = ?";
-        $this->db->prepare($sql);
-        $this->db->bindColumn(1, $fp, PDO::PARAM_LOB);
-        $this->db->bindColumn(2, $newKey);
-        $this->db->execute();
       }
     }
     return $newKey;
