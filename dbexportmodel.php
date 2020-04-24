@@ -264,6 +264,10 @@ try {
         };
         umask($umask);
         $zip->close();
+        /**
+         * Set the binary folder to the class
+         */
+        $export->binaryFolder = $root.$binaryfolder;
       }
       /**
        * Treatment of the import
