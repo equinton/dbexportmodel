@@ -1,14 +1,19 @@
 # DBExportModel
+Création : Éric Quinton © 2020 pour INRAE
+
+Distribué sous licence MIT
 
 ## Présentation
 
-Les bases de données relationnelles stockent l'information en la répartissant dans des tables à deux dimensions. Pour restituer celle-ci, des relations sont créées entre les tables, principalement des relations hiérarchiques (table 1 dépend de la table 2).
+Les bases de données relationnelles stockent l'information en la répartissant dans des tables à deux dimensions. Pour restituer celle-ci, des relations sont créées entre les tables, principalement des relations hiérarchiques (la table 2 dépend de la table 1).
 
-Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas la plus souvent adaptée, consiste à réaliser une sauvegarde complète, puis de la restaurer ensuite. L'autre solution consiste à extraire les données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple), mais là encore, extraire toutes les données nécessaires, pis retrouver l'ensemble de l'information initiale est complexe, en raison des relations entre les tables qui sont difficiles à reconstituer.
+Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution consiste à extraire les données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple). 
+Cela reste une opération complexe, notamment pour récupérer toutes les informations utiles éparpillées dans plusieurs tables, et les reconstituer ensuite.
 
 La solution proposée ici s'appuie sur l'utilisation d'un format de stockage hiérarchique. Le format JSON a été choisi en raison de sa compacité et de sa facilité d'interfaçage avec les langages actuels de programmation, mais XML aurait pu également être utilisé. 
 Le principe retenu est de stocker les objets dans leur entièreté, c'est à dire avec tous les sous-objets ou les objets relatifs qui le composent ou le définissent. 
-Ainsi, une commande comprendra non seulement le récapitulatif de la commande (enregistrement de la table commande), la référence du client, mais également toutes les lignes correspondants aux produits, chaque ligne contenant elle-même les références des produits et le code de TVA, informations stockées dans des tables différentes. 
+Par exemple, dans une gestion commerciale, une *commande* comprendra non seulement le récapitulatif de la commande (enregistrement présent dans la table *commande*), la référence du client, mais également toutes les lignes correspondant aux produits, chaque ligne contenant elle-même les références des produits et le code de la TVA utilisée, informations stockées dans des tables différentes. 
+
 Une fois décrite la structure des données à exporter, il est très facile de générer le fichier JSON correspondant et, en utilisant le même fichier de description, d'importer les objets dans la nouvelle base de données.
 
 ### Comment cela fonctionne ?
@@ -19,13 +24,13 @@ Cette description est stockée au format JSON.
 Les données sont stockées sous une forme hiérarchique. À partir d'une table, on retrouve dans l'enregistrement JSON :
 
   * les informations liées (tables *enfant*) ;
-  * les informations qui correspondent aux paramètres associés, c'est à dire celles qui sont stockées dans des tables dédiées pour en garantir l'unicité et leur non redondance.
+  * les informations qui correspondent aux paramètres associés, c'est à dire celles qui sont stockées dans des tables dédiées, créées pour en garantir l'unicité et leur non redondance.
 
 Chaque information *enfant* peut également contenir des enregistrements enfants, des paramètres, etc.
 
-Pour des questions notamment de volumétrie, les données binaires (type bytea) sont stockées dans un fichier (un fichier par enregistrement et par champ binaire).
+Pour des questions notamment de volumétrie, les données binaires (type *bytea*) sont stockées dans un fichier (un fichier par enregistrement et par champ binaire).
 
-Pour l'importation, le programme a besoin d'une description des tables traitées (types de champs), qui peut être générée à partir du programme. Elle est stockée au format JSON. Un script SQL de génération des tables correspondantes au modèle peut également être généré à partir de ces deux fichiers (modèle et description des tables). Ce script ne recréera pas la base de données initiale, mais simplement la structure nécessaire pour pouvoir importer les données transférées.
+Pour l'importation, le programme a besoin d'une description des tables traitées (types de champs), qui peut être générée à partir du programme. Elle est stockée au format JSON. Un script SQL de génération des tables correspondant au modèle peut également être généré à partir de ces deux fichiers (modèle et description des tables). Ce script ne recréera pas la base de données initiale, mais simplement la structure nécessaire pour pouvoir importer les données transférées.
 Lors de l'importation, les relations entre les tables sont recréées, en fonction des identifiants générés.
 
 Selon les paramètres définis, le programme pourra mettre à jour des enregistrements pré-existants, ou bien en créer systématiquement des nouveaux.
@@ -78,8 +83,8 @@ Dans ce cas de figure, la clé primaire de la table ne doit pas être renseigné
 
 ### Configuration de la description de la structure des tables
 
-Pour pouvoir procéder à l'exportation des données binaires, et à l'importation des données binaires ou booléennes, le programme a besoin de connaître les caractéristiques de chaque table exportée.
-Ces informations servent également à générer le script de création de la base de données correspondante aux données exportées.
+Pour pouvoir procéder à l'exportation des données binaires et à l'importation des données binaires ou booléennes, le programme a besoin de connaître les caractéristiques de chaque table exportée.
+Ces informations servent également à générer le script de création de la base de données correspondant aux données exportées.
 
 Le fichier, au format JSON, comprend un enregistrement dont le nom est le nom de la table, et qui contient :
 
@@ -122,6 +127,7 @@ Cette option récapitule l'ensemble des configurations possibles.
 
 #### Configuration de la connexion à la base de données
 Le fichier *param.ini.dist* doit être renommé en *param.ini*, et modifié pour configurer la connexion à la base de données. La section [database] contient les informations suivantes :
+
   * **dsn** : chaîne de connexion à la base de dnnées, contenant le nom du serveur (*host*) et le nom de la base de données (*dbname*). D'autres options peuvent être ajoutées, comme le support du chiffrement (*sslmode=require* par exemple)
   * **login** : login de connexion
   * **passwd** : mot de passe associé
@@ -129,6 +135,7 @@ Le fichier *param.ini.dist* doit être renommé en *param.ini*, et modifié pour
 
 #### fichiers par défaut
 Le programme est paramétré pour accepter des noms de fichier par défaut :
+
   * **dbexportdescription.json** : fichier contenant la description métier de l'export
   * **dbexportstructure.json** : fichier contenant la structure de la base de données (description des tables et des relations entre elles)
   * **dbexportkeys.json** : liste des clés à traiter
@@ -139,6 +146,7 @@ Le programme est paramétré pour accepter des noms de fichier par défaut :
 
 #### Déclencher un traitement
 Les options suivantes peuvent être utilisées :
+
   * **--export** : exporte les données
   * **--structure** : crée le fichier *dbexportstructure.json*, contenant la description des tables
   * **--create** : crée le fichier sql permettant de reconstituer la base de données correspondant aux données
@@ -156,3 +164,5 @@ La plupart des opérations sont réalisées par la classe *ExportModelProcessing
 La classe s'appuie sur quelques fonctions qui sont déclarées dans le fichier *lib/functions.php*.
 
 Il est possible de prendre pour modèle les commandes présentes dans le fichier *dbexportmodel.php* pour identifier les principales fonctionalités de la classe.
+
+La description des fonctions a été générée avec Doxygen, et est disponible dans *lib/html/index.html*.
