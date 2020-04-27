@@ -11,7 +11,6 @@ class ExportModelProcessing
   public $modeDebug = false;
   private $lastSql = "";
   private $stmt;
-  public $isWeb = true;
   public $structure = array();
   public $quote = '"';
   public $binaryFolder = "binary";
@@ -19,7 +18,6 @@ class ExportModelProcessing
    * Constructor
    *
    * @param PDO $bdd: database connection object
-   * @param bool $isWeb: false if run from command line
    */
   function __construct(PDO $db)
   {
