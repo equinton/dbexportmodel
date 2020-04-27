@@ -730,59 +730,80 @@ class ExportModelProcessing
         /**
          * Get the real values for parameters
          */
-        foreach ($row["parameters"] as $parameterName => $parameter) {
-          $modelParam = $this->model[$parameterName];
-          if (count($modelParam) == 0) {
-            throw new ExportException("The alias $parameterName was not described in the model");
-          }
-          /**
-           * Search the id from the parameter
-           */
-          $paramKey = $modelParam["technicalKey"];
-          $paramBusinessKey = $modelParam["businessKey"];
-          $paramTablename = $modelParam["tableName"];
-          $sqlSearchParam = "select $this->quote$paramKey$this->quote as key
+        if (is_array($row["parameters"])) {
+          foreach ($row["parameters"] as $parameterName => $parameter) {
+            $modelParam = $this->model[$parameterName];
+            if (count($modelParam) == 0) {
+              throw new ExportException("The alias $parameterName was not described in the model");
+            }
+            /**
+             * Record the current parameter
+             */
+            /**
+             * Search the id from the parameter
+             */
+            $paramKey = $modelParam["technicalKey"];
+            $paramBusinessKey = $modelParam["businessKey"];
+            $paramTablename = $modelParam["tableName"];
+            $sqlSearchParam = "select $this->quote$paramKey$this->quote as key
                     from $this->quote$paramTablename$this->quote
                     where $this->quote$paramBusinessKey$this->quote = :businessKey";
-          $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parameter[$modelParam["businessKey"]]));
-          $ptkey = $pdata[0]["key"];
-          if (!strlen($ptkey) > 0) {
-            /**
-             * write the parameter
-             */
-            if ($modelParam["technicalKey"] != $modelParam["businessKey"]) {
-              unset($parameter[$modelParam["technicalKey"]]);
+            $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parameter[$modelParam["businessKey"]]));
+            $ptkey = $pdata[0]["key"];
+            if (!strlen($ptkey) > 0) {
+              /**
+               * write the parameter
+               */
+              /*if ($modelParam["technicalKey"] != $modelParam["businessKey"]) {
+                unset($parameter[$modelParam["technicalKey"]]);
+              }*/
+              try {
+                //$ptkey = $this->writeData($parameterName, $parameter);
+                $param = array();
+                $param[0] = $parameter;
+                $this->importDataTable($paramTablename, $param);
+                /**
+                 * Get the real value from the parameter
+                 */
+                $pdata = $this->execute(
+                  $sqlSearchParam,
+                  array("businessKey" => $parameter[$modelParam["businessKey"]])
+                );
+                $ptkey = $pdata[0]["key"];
+                if (!$ptkey) {
+                  throw new ExportException(
+                    "Parameter table $parameterName - value: " . $parameter[$modelParam["businessKey"]] . " not found"
+                  );
+                }
+              } catch (Exception $e) {
+                throw new ExportException(
+                  "Record error for the parameter table $parameterName for the value " . $parameter[$modelParam["businessKey"]]
+                );
+              }
             }
-            try {
-              $ptkey = $this->writeData($parameterName, $parameter);
-            } catch (Exception $e) {
+            if ($this->modeDebug) {
+              printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $ptkey);
+            }
+            if (!strlen($ptkey) > 0) {
               throw new ExportException(
-                "Record error for the parameter table $parameterName for the value " . $parameter[$modelParam["businessKey"]]
+                "No key was found or generate for the parameter table $parameterName"
               );
             }
-          }
-          if ($this->modeDebug) {
-            printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $ptkey);
-          }
-          if (!strlen($ptkey) > 0) {
-            throw new ExportException(
-              "No key was found or generate for the parameter table $parameterName"
-            );
-          }
-          /**
-           * Search the name of the attribute corresponding in the row
-           */
-          $fieldName = "";
-          foreach ($model["parameters"] as $modParam) {
-            if ($modParam["aliasName"] == $parameterName) {
-              $fieldName = $modParam["fieldName"];
-              break;
+            /**
+             * Search the name of the attribute corresponding in the row
+             */
+            $fieldName = "";
+            foreach ($model["parameters"] as $modParam) {
+              if ($modParam["aliasName"] == $parameterName) {
+                $fieldName = $modParam["fieldName"];
+                break;
+              }
             }
+            if (strlen($fieldName) == 0) {
+              throw new ExportException(sprintf(_("Erreur inattendue : impossible de trouver le nom du champ correspondant à la table de paramètres %s"), $parameterName));
+            }
+            $row[$fieldName] = $ptkey;
           }
-          if (strlen($fieldName) == 0) {
-            throw new ExportException(sprintf(_("Erreur inattendue : impossible de trouver le nom du champ correspondant à la table de paramètres %s"), $parameterName));
-          }
-          $row[$fieldName] = $ptkey;
         }
         /**
          * Set values
@@ -865,7 +886,10 @@ class ExportModelProcessing
     if ($mode == "update") {
       $sql = "update $this->quote$tableName$this->quote set ";
       foreach ($data as $field => $value) {
-        if (is_array($structure["booleanFields"]) && in_array($field, $structure["booleanFields"]) && !$value) {
+        if (
+          is_array($structure["booleanFields"])
+          && in_array($field, $structure["booleanFields"]) && !$value
+        ) {
           $value = "false";
         }
         if ($field != $tkeyName) {
@@ -894,7 +918,10 @@ class ExportModelProcessing
       $cols = "(";
       $values = "(";
       foreach ($data as $field => $value) {
-        if (is_array($model["booleanFields"]) && in_array($field, $model["booleanFields"]) && !$value) {
+        if (
+          is_array($structure["booleanFields"])
+          && in_array($field, $structure["booleanFields"]) && !$value
+        ) {
           $value = "false";
         }
         if (!($model["istablenn"] == 1 && $field == $model["tablenn"]["tableAlias"])) {
