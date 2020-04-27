@@ -88,13 +88,13 @@ This information is also used to generate the database creation script for the e
 
 The file, in JSON format, contains a record whose name is the name of the table, and which contains :
 
-  * ** attributes**: the list of table columns, with, for each one:
+  * **attributes**: the list of table columns, with, for each one:
     * **attnum**: the sequence number of the attribute
-    * **field** : the name of the attribute
+    * **field**: the name of the attribute
     * **type**: the type of the attribute. The generation script replaces the value *int* by *serial* if the table contains a constraint of type *sequence*.
     * **comment**: the literary description of the attribute
-    * **notnull** : set to 1 if the attribute does not support null values
-    * **key** : the name of the key constraint for the table in question
+    * **notnull**: set to 1 if the attribute does not support null values
+    * **key**: the name of the key constraint for the table in question
   * **description**: the literary description of the table
   * **children** : the list of *children* tables, with for each one :
     * **tableName** : the name of the table 
@@ -129,26 +129,26 @@ This option summarizes all possible configurations.
 The *param.ini.dist* file must be renamed to *param.ini*, and modified to configure the database connection. The [database] section contains the following information:
 
   * **dsn**: database connection string, containing the server name (*host*) and the database name (*dbname*). Other options can be added, such as encryption support (*sslmode=require* for example).
-  * **login** : login
-  * **passwd** : associated password
-  * **schema** : list of default schemas. The *public* schema must be included in the list, especially if columns of type *geographic objects* exist.
+  * **login**: login
+  * **passwd**: associated password
+  * **schema**: list of default schemas. The *public* schema must be included in the list, especially if columns of type *geographic objects* exist.
 
 #### default files
 The program is set to accept default file names :
 
   * **dbexportdescription.json**: file containing the business description of the export
-  * **dbexportstructure.json** : file containing the database structure (description of the tables and the relations between them)
-  * **dbexportkeys.json** : list of keys to process
-  * **dbexportdata.json** : file containing the exported data
+  * **dbexportstructure.json**: file containing the database structure (description of the tables and the relations between them)
+  * **dbexportkeys.json**: list of keys to process
+  * **dbexportdata.json**: file containing the exported data
   * **dbcreate.sql**: file containing the SQL commands to generate the tables corresponding to the exported data.
   * **dbexport**: folder containing the generated binary files
-  * **dbexport.zip** : if the compression option is used, name of the file containing all the above information
+  * **dbexport.zip**: if the compression option is used, name of the file containing all the above information
 
 #### Trigger a treatment
 The following options can be used :
 
   * **--export**: exports data
-  * **--structure** : creates the file *dbexportstructure.json*, containing the description of the tables
+  * **--structure**: creates the file *dbexportstructure.json*, containing the description of the tables
   * **--create**: creates the sql file allowing to reconstitute the database corresponding to the data
   * **--import**: Triggers data import.
 
