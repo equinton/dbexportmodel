@@ -7,7 +7,7 @@ Distribué sous licence MIT
 
 Les bases de données relationnelles stockent l'information en la répartissant dans des tables à deux dimensions. Pour restituer celle-ci, des relations sont créées entre les tables, principalement des relations hiérarchiques (la table 2 dépend de la table 1).
 
-Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution communément utilisée consiste à extraire les données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple). 
+Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution communément utilisée est basée sur l'extraction des données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple). 
 Cela reste une opération complexe, notamment pour récupérer toutes les informations utiles éparpillées dans plusieurs tables, et les reconstituer ensuite.
 
 La solution proposée ici s'appuie sur l'utilisation d'un format de stockage hiérarchique. Le format JSON a été choisi en raison de sa compacité et de sa facilité d'interfaçage avec les langages actuels de programmation. 
@@ -59,7 +59,7 @@ Une liste de clés à traiter (au format JSON) peut être utilisée. Dans ce cas
     Si cet indicateur n'est pas positionné, l'intégralité de la table sera exporté.
   * Business key (**businessKey**): il s'agit du champ qui porte l'information discriminante pour retrouver l'enregistrement. En principe, le contenu de ce champ doit être unique dans la base de données. Si cette information est renseignée, elle est utilisée pour mettre à jour les enregistrements déjà existants. Si elle correspond à la clé primaire, les nouveaux enregistrements auront la valeur de la clé primaire fournie, et non celle générée automatiquement (si la clé primaire est de type *serial*)
   * Foreign key (**parentKey**): l'attribut qui porte la relation vers la table parente
-  * List of alias of related tables (**children**: il s'agit des tables qui dépendent de la table courante (tables enfant). Pour chacune, il faut indiquer :
+  * List of alias of related tables (**children**): il s'agit des tables qui dépendent de la table courante (tables enfant). Pour chacune, il faut indiquer :
     * Alias of the table (**aliasName**): l'alias de la table correspondante. Une description de cet alias devra être réalisée dans le modèle
     * Strict relation (**isStrict**): cet indicateur est positionné à *true* pour n'autoriser que les enregistrements strictement dépendants de la table courante
   * Parent tables (**parents**): les tables parentes contiennent principalement les tables de paramètres, qui sont utilisées pour factoriser des libellés régulièrement employés (liste des communes, des taxons, etc.). Pour chacune, il faut indiquer :
@@ -71,10 +71,10 @@ Une liste de clés à traiter (au format JSON) peut être utilisée. Dans ce cas
 
 #### Cas particuliers
 ##### Tables porteuses de champs binaires
-Les données binaires sont stockées dans des fichiers spécifiques. Leur nom est généré à partir du nom de la table, du nom de la colonne, et du nom de la clé métier (businessKey). Cette dernière doit donc impérativement être renseignée.
+Les données binaires sont stockées dans des fichiers spécifiques. Leur nom est généré à partir du nom de la table, du nom de la colonne, et du nom de la clé métier (*businessKey*). Cette dernière doit donc impérativement être renseignée.
 
 ##### Tables parentes de type paramètres
-Les enregistrements dans les tables de paramètres peuvent être présents à de multiples emplacements dans le fichier de données. Pour éviter que ceux-ci soient multipliés lors de l'importation, une clé métier (businessKey) doit impérativement être indiquée.
+Les enregistrements dans les tables de paramètres peuvent être présents à de multiples emplacements dans le fichier de données. Pour éviter que ceux-ci soient multipliés lors de l'importation, une clé métier (*businessKey*) doit impérativement être indiquée.
 
 Cette clé métier correspondra à la clé primaire si on souhaite conserver la même numérotation que dans la base de données d'origine.
 
@@ -124,7 +124,7 @@ Il est possible de ne réaliser l'exportation que pour un nombre limité d'enreg
 Ces clés seront associées avec *la première table* décrite dans le modèle.
 
 ## Utilisation du programme
-Le programme a été écrit en PHP, version 7.2 minimum.
+Le programme a été écrit en PHP, version 7.2 minimum. Les modules suivants doivent être installés et activés : zip, json, pgsql.
 
 ### Utilisation en ligne de commande
 

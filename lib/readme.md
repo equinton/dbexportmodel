@@ -4,7 +4,6 @@ This zip file contains:
 
   * **dbexportdescription.json**: file containing the business description of the export
   * **dbexportstructure.json**: file containing the database structure (description of the tables and the relations between them)
-  * **dbexportkeys.json**: list of keys to process
   * **dbexportdata.json**: file containing the exported data
   * **binary**: folder containing the generated binary files
 

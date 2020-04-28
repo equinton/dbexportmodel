@@ -10,11 +10,11 @@ Relational databases store information by dividing it into two-dimensional table
 Transferring data from one database to another is a complex operation. The simplest, but often not the most suitable solution, is to make a full backup and then restore it afterwards. The other solution is to extract the data from each table into files supporting two dimensions (CSV files for example). 
 This remains a complex operation, especially to retrieve all the useful information scattered in several tables, and then to reconstruct them afterwards.
 
-The solution proposed here is based on the use of a hierarchical storage format. The JSON format was chosen because of its compactness and ease of interfacing with current programming languages, but XML could also have been used. 
-The principle retained is to store objects in their entirety, i.e. with all the sub-objects or relative objects that compose or define them. 
-For example, in a commercial management, an *order* will include not only the summary of the order (record present in the *order* table), the customer reference, but also all the lines corresponding to the products, each line itself containing the product references and the VAT code used, information stored in different tables. 
+The solution proposed here is based on the use of a hierarchical storage format. The JSON format was chosen because of its compactness and ease of interfacing with current programming languages. 
+For example, in a commercial management, an *order* will include not only the summary of the order (record present in the *order* table), but also the customer reference,  all the lines corresponding to the products, each line itself containing the product references and the VAT code used, information stored in different tables. In the JSON file, a record contains all these informations. In the JSON file, a record will include all this information, stored in a hierarchical way: each item is a complete view of the business object being manipulated.
+This implies that some data will be redundant, notably all generic data (parameter tables, in particular).
 
-Once the structure of the data to be exported has been described, it is very easy to generate the corresponding JSON file and, using the same description file, to import the objects into the new database.
+A JSON file contains the business description of the objects (the relationships between the tables). Once this structure has been described, the program can extract the data and then reconstruct it by performing the reverse operation.
 
 ### How does it work?
 DBExportModel is based on a *business* description of the relational model, identifying the relationships between tables and their nature. 
@@ -24,9 +24,9 @@ This description is stored in JSON format.
 The data is stored in a hierarchical form. Starting from a table, the JSON record contains the following information:
 
   * Related information (*child* tables);
-  * the information that corresponds to the associated parameters, i.e. the information stored in dedicated tables, created to ensure uniqueness and non-redundancy.
+  * the parent informations, including parameter tables.
 
-Each *child* information can also contain child records, parameters, etc.
+Each  information can also contain child  or parent records, parameters, etc., recursively.
 
 For volumetric issues in particular, binary data (type *bytea*) are stored in a file (one file per record and per binary field).
 
@@ -55,31 +55,39 @@ A list of keys to be processed (in JSON format) can be used. In this case, the f
   * Name of the table (**tableName**): name of the table in the database.
   * Alias of the table (**aliasName**): when the table is in several relationships at once, each relationship must be described with a different alias. The same table can thus be described several times with different aliases.
   * Primary key (**technicalKey**): Primary key of the table. It must be filled in for all tables, except for tables with n-n relationships.
-  * Table empty (**isEmpty**): this flag will be set if the table is not to be exported in its entirety, but only filled in with information from other tables. This flag applies especially to parameter tables, since their contents do not need to be transferred in their entirety. For example, if only 5 communes are mentioned in the transmitted data, it is not useful to transfer all the communes present in the original database.
+  * Table empty (**isEmpty**): this flag will be set if the table is not to be exported in its entirety, but only filled in with information from other tables. This flag applies especially to parameter tables, since their contents do not need to be transferred in their entirety. For example, if only 5 communes are mentioned in the transmitted data, it is not useful to transfer all the communes present in the original database. If this flag is not positioned, all the content of the table will be exported.
   * Business key (**businessKey**): this is the field that carries the discriminating information to retrieve the record. In principle, the content of this field must be unique in the database. If this information is filled in, it is used to update already existing records. If it matches the primary key, new records will have the value of the primary key provided, not the automatically generated one (if the primary key is of type *serial*).
   * Foreign key (**parentKey**): the attribute that carries the relationship to the parent table.
-  * List of alias of related tables (**children**: these are the tables that depend on the current table (child tables). For each one, you must indicate :
+  * List of alias of related tables (**children**): these are the tables that depend on the current table (child tables). For each one, you must indicate :
     * Alias of the table (**aliasName**): the alias of the corresponding table. A description of this alias must be made in the model
     * Strict relation (**isStrict**): this flag is set to *true* to allow only the strictly dependent records of the current table.
-  * Parameter tables (**parameters**): parameter tables are the tables that are used to factorize regularly used labels (list of communes, taxa, etc.). For each one, you have to indicate :
+  * Parent tables (**parents**): parent tables contains manly parameter tables, which are the tables that are used to factorize regularly used labels (list of communes, taxa, etc.). For each one, you have to indicate :
     * Alias table (**aliasName**): the name of the alias, which is also described
     * Column name in the current table (**fieldName**): name of the column that supports the relationship to the parameter table.
   * Table of type n-n (**istablenn**): n-n tables are tables imposed by relational databases to match two tables, each of which may have multiple records to another table. They are characterized by a relationship systematically carried to the two parent tables. Positioning the indicator at *true* will allow you to indicate, in **tablenn** :
     * Name of the second foreign key (**secondaryParentKey**): the name of the attribute bearing the relationship to the second table.
     * Alias of the second table (**tableAlias**): the name of the alias of the second table.
 
-## Special cases
-### Binary Field Carrier Tables
+### Special cases
+#### Binary Field Carrier Tables
 Binary data is stored in specific files. Their name is generated from the table name, the column name, and the name of the business key. The latter must therefore be filled in.
 
-### Parameter tables
-Records in the parameter tables can be present in multiple locations in the data file. To prevent them from being multiplied during import, a business key must be specified.
+#### Parent tables of type parameter
+Records in the parameter tables can be present in multiple locations in the data file. To prevent them from being multiplied during import, a business key (*businessKey*) must be specified.
 
 This business key will correspond to the primary key if you wish to keep the same numbering as in the original database.
 
-### Tables carrying the n-n relationships
+#### Tables carrying the n-n relationships
 
 In this case, the primary key of the table must not be filled. If a primary key exists in the original table, it must have the type *serial*.
+
+#### Alias setup
+
+Aliases must be positioned as soon as a risk of cyclical relationship can be established. This may be the case for a table that is child to one table of the model, and parent to another table. In this case, one of the two relationships must be an alias. 
+
+Another case where the alias is useful is when the same table has several relationships to another table, carried by different attributes (for example, a parameter table contains value bounds used in different cases, carried by different attributes).
+
+The alias must also be described, in the same way as the initial table.
 
 ### Setting up the description of the table structure
 
@@ -115,7 +123,7 @@ It is possible to export only a limited number of records. The list of keys to b
 These keys will be associated with *the first table* described in the template.
 
 ## Using the program
-The program was written in PHP, version 7.2 minimum.
+The program was written in PHP, version 7.2 minimum. These modules must be installed and activated: zip, json, pgsql.
 
 ### Command line use
 
@@ -168,4 +176,4 @@ It is possible to take as a model the commands present in the *dbexportmodel.php
 The description of the functions has been generated with Doxygen, and is available in *lib/html/index.html*.
 
 
-Translated in English from readme-fr.md with [https://www.deepl.com/translator](https://www.deepl.com/translator)
+Translated in English from [readme-fr.md]() with [https://www.deepl.com/translator](https://www.deepl.com/translator)

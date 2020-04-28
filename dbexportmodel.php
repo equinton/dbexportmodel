@@ -33,10 +33,10 @@ try {
     $message->set("--structure: generate the structure of the tables involved in the export");
     $message->set("--keyfile=dbexportkeys.json: list of the keys to be treated for the export operation");
     $message->set("--structurename=dbexportstructure.json: name of the file which contents the database structure");
-    $message->set("--description=dbexportdescription.json: name of the file which contents the description of the export/import");
-    $message->set("--data=dbexportdata.json: file contents data");
+    $message->set("--descriptionname=dbexportdescription.json: name of the file which contents the description of the export/import");
+    $message->set("--dataname=dbexportdata.json: file contents data");
     $message->set("--binaryfolder=dbexport: name of the folder which contents the binary files exported from database");
-    $message->set("--filezip=dbexport.zip: name of zip file");
+    $message->set("--zipfile=dbexport.zip: name of zip file");
     $message->set("--zip: create or use a zip file witch contents structure, description, data and binary files");
     $message->set("--sqlfile:dbcreate.sql name of the file that will contain the database tables generation sql script");
     $message->set("Change params in param.ini to specify the parameters to connect the database, and specify the list of schemas to analyze, separated by a comma");
@@ -46,8 +46,8 @@ try {
 
     $isConnected = false;
     $structurename = "dbexportstructure.json";
-    $description = "dbexportdescription.json";
-    $datafile = "dbexportdata.json";
+    $descriptionname = "dbexportdescription.json";
+    $dataname = "dbexportdata.json";
     $keyfile = "dbexportkeys.json";
     $zipfile = "dbexport.zip";
     $binaryfolder = "binary";
@@ -144,36 +144,36 @@ try {
    * Open the structure and the description
    */
 
-  if (!file_exists($description)) {
-    throw new ExportException("The file $description don't exists");
+  if (!file_exists($root.$descriptionname)) {
+    throw new ExportException("The file $root.$descriptionname don't exists");
   }
-  $fd = file_get_contents($description);
+  $fd = file_get_contents($root.$descriptionname);
   if (!$fd) {
-    throw new ExportException("The file $description can't be read");
+    throw new ExportException("The file $root.$descriptionname can't be read");
   }
   if ($modeDebug) {
-    echo "File $description loaded" . phpeol();
+    echo "File $root.$descriptionname loaded" . phpeol();
   }
   $export->initModel(json_decode($fd, true));
   if ($action != "structure") {
-    if (!file_exists($structurename)) {
+    if (!file_exists($root.$structurename)) {
       /**
        * Generate the structure of the database before export
        */
-      file_put_contents($structurename, $export->generateStructure());
+      file_put_contents($root.$structurename, $export->generateStructure());
     } else {
-      $fs = file_get_contents($structurename);
+      $fs = file_get_contents($root.$structurename);
       if (!$fs) {
-        throw new ExportException("The file $structurename can't be read");
+        throw new ExportException("The file $root.$structurename can't be read");
       }
       $structure = json_decode($fs, true);
       if (!is_array($structure) && count($structure) == 0) {
-        throw new ExportException("$structurename is empty");
+        throw new ExportException("$root.$structurename is empty");
       }
       $export->initStructure($structure);
     }
     if ($modeDebug) {
-      echo "File $structurename loaded" . phpeol();
+      echo "File $root.$structurename loaded" . phpeol();
     }
   }
 
@@ -207,18 +207,18 @@ try {
        * Write datafile
        */
       if (!$zipped) {
-        file_put_contents($datafile, json_encode($dexport));
-        $message->set("Data are been recorded in the file $datafile. Where applicable, the binary data are stored in the folder $binaryfolder");
+        file_put_contents($dataname, json_encode($dexport));
+        $message->set("Data are been recorded in the file $dataname. Where applicable, the binary data are stored in the folder $binaryfolder");
       } else {
         if ($modeDebug) {
           echo "Create the zipfile" . phpeol();
         }
-        file_put_contents($root . $datafile, json_encode($dexport));
+        file_put_contents($root . $dataname, json_encode($dexport));
         $zip = new ZipArchive;
         $zip->open($zipfile, ZipArchive::CREATE);
         $zip->addFile($structurename, basename($structurename));
-        $zip->addFile($description, basename($description));
-        $zip->addFile($root . $datafile, basename($datafile));
+        $zip->addFile($descriptionname, basename($descriptionname));
+        $zip->addFile($root . $dataname, basename($dataname));
         if (file_exists($readmefile)) {
           $zip->addFile($readmefile, basename($readmefile));
         }
@@ -236,7 +236,7 @@ try {
         /**
          * Purge of files
          */
-        unlink($root . $datafile);
+        unlink($root . $dataname);
         if (is_dir($binaryfolder)) {
           foreach (scandir($binaryfolder) as $bf) {
             if (is_file($binaryfolder . "/" . $bf) && substr($bf, -3) == "bin") {
@@ -272,12 +272,12 @@ try {
       /**
        * Treatment of the import
        */
-      if (!is_file($root . $datafile)) {
-        throw new ExportException("The file $datafile don't exists");
+      if (!is_file($root . $dataname)) {
+        throw new ExportException("The file $dataname don't exists");
       }
-      $data = json_decode(file_get_contents($root . $datafile), true);
+      $data = json_decode(file_get_contents($root . $dataname), true);
       if (!is_array($data)) {
-        throw new ExportException("The file $root" . "$datafile don't contains data");
+        throw new ExportException("The file $root" . "$dataname don't contains data");
       }
       if ($modeDebug) {
         echo "Importing data..." . phpeol();

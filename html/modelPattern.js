@@ -66,7 +66,7 @@ function patternForm(id, dataId, data = "") {
                         }
                     },
                     "parents": {
-                        "title":"Liste of associated parameter tables",
+                        "title":"Liste of parents tables",
                         "type":"array",
                         "items": {
                             "type":"object",

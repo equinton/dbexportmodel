@@ -37,7 +37,7 @@
                 var alp = $("#alpacaPattern").alpaca("get");
                 alp.refreshValidationState(true);
                 if (!alp.isValid(true)) {
-                    alert("La définition du modèle n'est pas valide.");
+                    alert("The definition of the model is not valid.");
                 } else {
                     var data = alp.getValue();
                     saveText(JSON.stringify(data), $("#export_model_name").val());
@@ -61,7 +61,7 @@
                     //alp.setValue(data);
                     //console.log(data);
                 } catch {
-                    alert("Les données ne peuvent être chargées");
+                    alert("Data can't be loaded");
                 }
             };
 
@@ -69,7 +69,7 @@
                 var file = this.files[0];
                 if (file) {
                     //console.log(file);
-                    $("#export_model_name").val(file.name);
+                    $("#export_model_name").val(file.webkitRelativePath + file.name);
                     fileread.readAsText(file);
                 }
             });
