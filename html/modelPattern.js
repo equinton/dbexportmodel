@@ -65,7 +65,7 @@ function patternForm(id, dataId, data = "") {
                             }
                         }
                     },
-                    "parameters": {
+                    "parents": {
                         "title":"Liste of associated parameter tables",
                         "type":"array",
                         "items": {

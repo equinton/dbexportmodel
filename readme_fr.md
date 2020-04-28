@@ -7,14 +7,14 @@ Distribué sous licence MIT
 
 Les bases de données relationnelles stockent l'information en la répartissant dans des tables à deux dimensions. Pour restituer celle-ci, des relations sont créées entre les tables, principalement des relations hiérarchiques (la table 2 dépend de la table 1).
 
-Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution consiste à extraire les données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple). 
+Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution communément utilisée consiste à extraire les données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple). 
 Cela reste une opération complexe, notamment pour récupérer toutes les informations utiles éparpillées dans plusieurs tables, et les reconstituer ensuite.
 
-La solution proposée ici s'appuie sur l'utilisation d'un format de stockage hiérarchique. Le format JSON a été choisi en raison de sa compacité et de sa facilité d'interfaçage avec les langages actuels de programmation, mais XML aurait pu également être utilisé. 
-Le principe retenu est de stocker les objets dans leur entièreté, c'est à dire avec tous les sous-objets ou les objets relatifs qui le composent ou le définissent. 
-Par exemple, dans une gestion commerciale, une *commande* comprendra non seulement le récapitulatif de la commande (enregistrement présent dans la table *commande*), la référence du client, mais également toutes les lignes correspondant aux produits, chaque ligne contenant elle-même les références des produits et le code de la TVA utilisée, informations stockées dans des tables différentes. 
+La solution proposée ici s'appuie sur l'utilisation d'un format de stockage hiérarchique. Le format JSON a été choisi en raison de sa compacité et de sa facilité d'interfaçage avec les langages actuels de programmation. 
+Par exemple, dans une gestion commerciale, une *commande* comprend non seulement le récapitulatif de la commande (enregistrement présent dans la table *commande*), mais aussi la référence du client , toutes les lignes correspondant aux produits, chaque ligne contenant elle-même les références des produits et le code de la TVA utilisée, informations stockées dans des tables différentes. Dans le fichier JSON, un enregistrement comprendra toutes ces informations, stockées de manière hiérarchique : chaque item est une vision complète de l'objet métier manipulé.
+Cela implique que certaines données seront redondantes, notamment toutes celles qui sont génériques (tables de paramètres, notamment).
 
-Une fois décrite la structure des données à exporter, il est très facile de générer le fichier JSON correspondant et, en utilisant le même fichier de description, d'importer les objets dans la nouvelle base de données.
+Un fichier JSON contient la description métier des objets (les relations entre les tables). Une fois cette structure décrite, le programme peut extraire les données, puis les reconstituer en réalisant l'opération inverse.
 
 ### Comment cela fonctionne ?
 DBExportModel s'appuie sur une description *métier* du modèle relationnel, en identifiant les relations entre les tables et leur nature. 
@@ -24,13 +24,13 @@ Cette description est stockée au format JSON.
 Les données sont stockées sous une forme hiérarchique. À partir d'une table, on retrouve dans l'enregistrement JSON :
 
   * les informations liées (tables *enfant*) ;
-  * les informations qui correspondent aux paramètres associés, c'est à dire celles qui sont stockées dans des tables dédiées, créées pour en garantir l'unicité et leur non redondance.
+  * les informations parentes (tables de paramètres notamment).
 
-Chaque information *enfant* peut également contenir des enregistrements enfants, des paramètres, etc.
+Chaque information peut également contenir des enregistrements enfants ou parents, de manière récursive.
 
-Pour des questions notamment de volumétrie, les données binaires (type *bytea*) sont stockées dans un fichier (un fichier par enregistrement et par champ binaire).
+Pour des questions notamment de volumétrie, les données binaires (type *bytea*) sont stockées dans un fichier externe au fichier JSON (un fichier par enregistrement et par champ binaire).
 
-Pour l'importation, le programme a besoin d'une description des tables traitées (types de champs), qui peut être générée à partir du programme. Elle est stockée au format JSON. Un script SQL de génération des tables correspondant au modèle peut également être généré à partir de ces deux fichiers (modèle et description des tables). Ce script ne recréera pas la base de données initiale, mais simplement la structure nécessaire pour pouvoir importer les données transférées.
+Pour l'importation, le programme a besoin d'une description des tables traitées (types de champs), qui peut être générée à partir du programme. Elle est stockée au format JSON. Un script SQL de génération des tables correspondant au modèle peut également être généré à partir de ces deux fichiers (modèle et description des tables). Ce script ne recréera pas la base de données initiale, mais simplement la structure nécessaire pour pouvoir importer les données transférées (la vision *métier*).
 Lors de l'importation, les relations entre les tables sont recréées, en fonction des identifiants générés.
 
 Selon les paramètres définis, le programme pourra mettre à jour des enregistrements pré-existants, ou bien en créer systématiquement des nouveaux.
@@ -40,7 +40,7 @@ Le programme a été conçu pour Postgresql.
 
 Chaque table doit disposer d'une clé primaire numérique, auto-incrémentée ou non. Quand la clé n'est pas auto-incrémentée, certaines précautions sont à prendre lors de la description du modèle. Le support de clés primaires non numériques sera envisagé dans une version future.
 
-Les tables ne doivent posséder que des clés primaires composées d'un seul attribut (sauf cas spécifique des tables porteuses de relations n-n).
+Les tables ne doivent posséder que des clés primaires composées d'un seul attribut, sauf cas spécifique des tables porteuses de relations n-n.
 
 ## Description des fichiers
 
@@ -55,15 +55,16 @@ Une liste de clés à traiter (au format JSON) peut être utilisée. Dans ce cas
   * Name of the table (**tableName**): nom de la table dans la base de données
   * Alias of the table (**aliasName**): quand la table figure dans plusieurs relations à la fois, chaque relation doit être décrite avec un alias différent. Une même table peut ainsi être décrite plusieurs fois avec différents alias
   * Primary key (**technicalKey**): clé primaire de la table. Elle doit être renseignée pour toutes les tables, sauf dans le cas des tables porteuses des relations n-n
-  * Table empty (**isEmpty**): cet indicateur sera positionné si la table ne doit pas être exportée dans son intégralité, mais renseignée uniquement à partir des informations fournies dans d'autres tables. Cet indicateur s'applique surtout aux tables de paramètres, dès lors que leur contenu n'a pas besoin d'être transféré intégralement. Par exemple, si 5 communes seulement sont citées dans les données transmises, il n'est pas utile de transférer l'ensemble des communes présentes dans la base de données d'origine
+  * Table empty (**isEmpty**): cet indicateur sera positionné si la table ne doit pas être exportée dans son intégralité, mais renseignée uniquement à partir des informations fournies dans d'autres tables. Cet indicateur s'applique surtout aux tables parentes, dès lors que leur contenu n'a pas besoin d'être transféré intégralement. Par exemple, si 5 communes seulement sont citées dans les données transmises, il n'est pas utile de transférer l'ensemble des communes présentes dans la base de données d'origine.
+    Si cet indicateur n'est pas positionné, l'intégralité de la table sera exporté.
   * Business key (**businessKey**): il s'agit du champ qui porte l'information discriminante pour retrouver l'enregistrement. En principe, le contenu de ce champ doit être unique dans la base de données. Si cette information est renseignée, elle est utilisée pour mettre à jour les enregistrements déjà existants. Si elle correspond à la clé primaire, les nouveaux enregistrements auront la valeur de la clé primaire fournie, et non celle générée automatiquement (si la clé primaire est de type *serial*)
   * Foreign key (**parentKey**): l'attribut qui porte la relation vers la table parente
   * List of alias of related tables (**children**: il s'agit des tables qui dépendent de la table courante (tables enfant). Pour chacune, il faut indiquer :
     * Alias of the table (**aliasName**): l'alias de la table correspondante. Une description de cet alias devra être réalisée dans le modèle
     * Strict relation (**isStrict**): cet indicateur est positionné à *true* pour n'autoriser que les enregistrements strictement dépendants de la table courante
-  * Parameter tables (**parameters**): les tables de paramètres sont les tables qui sont utilisées pour factoriser des libellés régulièrement employés (liste des communes, des taxons, etc.). Pour chacune, il faut indiquer :
+  * Parent tables (**parents**): les tables parentes contiennent principalement les tables de paramètres, qui sont utilisées pour factoriser des libellés régulièrement employés (liste des communes, des taxons, etc.). Pour chacune, il faut indiquer :
     * Table alias (**aliasName**): le nom de l'alias, décrit par ailleurs
-    * Column name in the current table (**fieldName**): nom de la colonne qui sert de support à la relation vers la table de paramètres
+    * Column name in the current table (**fieldName**): nom de la colonne qui sert de support à la relation vers la table parente
   * Table of type n-n (**istablenn**): les tables n-n sont des tables imposées par les bases relationnelles pour faire correspondre deux tables dont chacune peut avoir plusieurs enregistrements vers une autre table. Elles se caractérisent par une relation portée systématiquement vers les deux tables parentes. Le positionnement de l'indicateur à *true* va permettre d'indiquer, dans **tablenn** :
     * Name of the second foreign key (**secondaryParentKey**): le nom de l'attribut portant la relation vers la seconde table
     * Alias of the second table (**tableAlias**): le nom de l'alias de la seconde table.
@@ -72,7 +73,7 @@ Une liste de clés à traiter (au format JSON) peut être utilisée. Dans ce cas
 ##### Tables porteuses de champs binaires
 Les données binaires sont stockées dans des fichiers spécifiques. Leur nom est généré à partir du nom de la table, du nom de la colonne, et du nom de la clé métier (businessKey). Cette dernière doit donc impérativement être renseignée.
 
-##### Tables de paramètres
+##### Tables parentes de type paramètres
 Les enregistrements dans les tables de paramètres peuvent être présents à de multiples emplacements dans le fichier de données. Pour éviter que ceux-ci soient multipliés lors de l'importation, une clé métier (businessKey) doit impérativement être indiquée.
 
 Cette clé métier correspondra à la clé primaire si on souhaite conserver la même numérotation que dans la base de données d'origine.
@@ -80,6 +81,14 @@ Cette clé métier correspondra à la clé primaire si on souhaite conserver la 
 ##### Tables porteuses des relations n-n
 
 Dans ce cas de figure, la clé primaire de la table ne doit pas être renseignée. Si une clé primaire existe dans la table d'origine, elle doit être de type *serial*.
+
+#### Configuration des alias
+
+Les alias doivent être positionnés dès lors qu'un risque de relation cyclique puisse s'établir. Cela peut être le cas pour une table qui est enfant par rapport à une table du modèle, et parente par rapport à une autre table. Dans ce cas de figure, une des deux relations doit porter sur un alias. 
+
+Un autre cas où l'alias est utile, c'est quand la même table a plusieurs relations vers une autre table, portée par des attributs différents (par exemple, une table de paramètres contient des bornes de valeurs utilisées dans des cas différents, portés par des attributs différents).
+
+L'alias doit également être décrit, au même titre que la table initiale.
 
 ### Configuration de la description de la structure des tables
 

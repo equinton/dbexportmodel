@@ -106,9 +106,9 @@ class ExportModelProcessing
         $this->structure[$table["tableName"]]["children"][] = $a_alias;
       }
       /**
-       * Add the parents (parameters tables, table nn)
+       * Add the parents (parents tables, table nn)
        */
-      foreach ($table["parameters"] as $param) {
+      foreach ($table["parents"] as $param) {
         $alias = $param["aliasName"];
         $a_alias = array(
           "tableName" => $model[$alias]["tableName"],
@@ -497,14 +497,14 @@ class ExportModelProcessing
         }
       }
       /**
-       * Search the parameters
+       * Search the parents
        */
-      if (count($model["parameters"]) > 0) {
+      if (count($model["parents"]) > 0) {
         foreach ($content as $k => $row) {
-          foreach ($model["parameters"] as $parameter) {
-            $id = $row[$parameter["fieldName"]];
+          foreach ($model["parents"] as $parent) {
+            $id = $row[$parent["fieldName"]];
             if ($id > 0) {
-              $content[$k]["parameters"][$parameter["aliasName"]] = $this->getTableContent($parameter["aliasName"], array($id))[0];
+              $content[$k]["parents"][$parent["aliasName"]] = $this->getTableContent($parent["aliasName"], array($id))[0];
             }
           }
         }
@@ -728,19 +728,19 @@ class ExportModelProcessing
           $row[$model["tablenn"]["secondaryParentKey"]] = $skey;
         }
         /**
-         * Get the real values for parameters
+         * Get the real values for parents
          */
-        if (is_array($row["parameters"])) {
-          foreach ($row["parameters"] as $parameterName => $parameter) {
-            $modelParam = $this->model[$parameterName];
+        if (is_array($row["parents"])) {
+          foreach ($row["parents"] as $parentName => $parent) {
+            $modelParam = $this->model[$parentName];
             if (count($modelParam) == 0) {
-              throw new ExportException("The alias $parameterName was not described in the model");
+              throw new ExportException("The alias $parentName was not described in the model");
             }
             /**
-             * Record the current parameter
+             * Record the current parent
              */
             /**
-             * Search the id from the parameter
+             * Search the id from the parent
              */
             $paramKey = $modelParam["technicalKey"];
             $paramBusinessKey = $modelParam["businessKey"];
@@ -748,59 +748,55 @@ class ExportModelProcessing
             $sqlSearchParam = "select $this->quote$paramKey$this->quote as key
                     from $this->quote$paramTablename$this->quote
                     where $this->quote$paramBusinessKey$this->quote = :businessKey";
-            $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parameter[$modelParam["businessKey"]]));
+            $pdata = $this->execute($sqlSearchParam, array("businessKey" => $parent[$modelParam["businessKey"]]));
             $ptkey = $pdata[0]["key"];
             if (!strlen($ptkey) > 0) {
               /**
-               * write the parameter
+               * write the parent
                */
-              /*if ($modelParam["technicalKey"] != $modelParam["businessKey"]) {
-                unset($parameter[$modelParam["technicalKey"]]);
-              }*/
               try {
-                //$ptkey = $this->writeData($parameterName, $parameter);
                 $param = array();
-                $param[0] = $parameter;
+                $param[0] = $parent;
                 $this->importDataTable($paramTablename, $param);
                 /**
-                 * Get the real value from the parameter
+                 * Get the real value from the parent
                  */
                 $pdata = $this->execute(
                   $sqlSearchParam,
-                  array("businessKey" => $parameter[$modelParam["businessKey"]])
+                  array("businessKey" => $parent[$modelParam["businessKey"]])
                 );
                 $ptkey = $pdata[0]["key"];
                 if (!$ptkey) {
                   throw new ExportException(
-                    "Parameter table $parameterName - value: " . $parameter[$modelParam["businessKey"]] . " not found"
+                    "parent table $parentName - value: " . $parent[$modelParam["businessKey"]] . " not found"
                   );
                 }
               } catch (Exception $e) {
                 throw new ExportException(
-                  "Record error for the parameter table $parameterName for the value " . $parameter[$modelParam["businessKey"]]
+                  "Record error for the parent table $parentName for the value " . $parent[$modelParam["businessKey"]]
                 );
               }
             }
             if ($this->modeDebug) {
-              printr("Parameter " . $parameterName . ": key for " . $parameter[$modelParam["businessKey"]] . " is " . $ptkey);
+              printr("parent " . $parentName . ": key for " . $parent[$modelParam["businessKey"]] . " is " . $ptkey);
             }
             if (!strlen($ptkey) > 0) {
               throw new ExportException(
-                "No key was found or generate for the parameter table $parameterName"
+                "No key was found or generate for the parent table $parentName"
               );
             }
             /**
              * Search the name of the attribute corresponding in the row
              */
             $fieldName = "";
-            foreach ($model["parameters"] as $modParam) {
-              if ($modParam["aliasName"] == $parameterName) {
+            foreach ($model["parents"] as $modParam) {
+              if ($modParam["aliasName"] == $parentName) {
                 $fieldName = $modParam["fieldName"];
                 break;
               }
             }
             if (strlen($fieldName) == 0) {
-              throw new ExportException(sprintf(_("Erreur inattendue : impossible de trouver le nom du champ correspondant à la table de paramètres %s"), $parameterName));
+              throw new ExportException(sprintf(_("Erreur inattendue : impossible de trouver le nom du champ correspondant à la table de paramètres %s"), $parentName));
             }
             $row[$fieldName] = $ptkey;
           }
@@ -821,7 +817,7 @@ class ExportModelProcessing
          */
         $children = $row["children"];
         unset($row["children"]);
-        unset($row["parameters"]);
+        unset($row["parents"]);
         $id = $this->writeData($tableAlias, $row);
         if ($this->modeDebug) {
           printr("Recorded $tableAlias - id: $id");
