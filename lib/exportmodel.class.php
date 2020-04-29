@@ -175,7 +175,10 @@ class ExportModelProcessing
                 CASE pg_attribute.attnotnull WHEN FALSE THEN 0 ELSE 1 END AS notnull,
                 pg_constraint.conname AS key
                 FROM pg_tables
-                JOIN pg_class on (pg_class.relname = pg_tables.tablename)
+                JOIN pg_namespace ON (pg_namespace.nspname = pg_tables.schemaname)
+                JOIN pg_class
+                  ON (pg_class.relname = pg_tables.tablename
+                AND pg_class.relnamespace = pg_namespace.oid)
                 JOIN pg_attribute ON (pg_class.oid = pg_attribute.attrelid AND pg_attribute.atttypid <> 0::OID AND pg_attribute.attnum > 0)
                 LEFT JOIN pg_constraint
                 ON pg_constraint.contype = 'p'::char
