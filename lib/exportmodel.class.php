@@ -173,8 +173,7 @@ class ExportModelProcessing
                 pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS type,
                 (SELECT col_description(pg_attribute.attrelid,pg_attribute.attnum)) AS COMMENT,
                 CASE pg_attribute.attnotnull WHEN FALSE THEN 0 ELSE 1 END AS notnull,
-                pg_constraint.conname AS key,
-                (SELECT pg_attrdef.adsrc FROM pg_attrdef WHERE pg_attrdef.adrelid = pg_class.oid AND pg_attrdef.adnum = pg_attribute.attnum) AS def
+                pg_constraint.conname AS key
                 FROM pg_tables
                 JOIN pg_class on (pg_class.relname = pg_tables.tablename)
                 JOIN pg_attribute ON (pg_class.oid = pg_attribute.attrelid AND pg_attribute.atttypid <> 0::OID AND pg_attribute.attnum > 0)
