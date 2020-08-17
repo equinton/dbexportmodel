@@ -7,17 +7,17 @@ Distribué sous licence MIT
 
 Les bases de données relationnelles stockent l'information en la répartissant dans des tables à deux dimensions. Pour restituer celle-ci, des relations sont créées entre les tables, principalement des relations hiérarchiques (la table 2 dépend de la table 1).
 
-Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution communément utilisée est basée sur l'extraction des données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple). 
+Transférer des données d'une base de données à une autre est une opération complexe. La solution la plus simple, mais pas souvent la plus adaptée, consiste à réaliser une sauvegarde complète, puis à la restaurer ensuite. L'autre solution communément utilisée est basée sur l'extraction des données de chaque table dans des fichiers supportant deux dimensions (fichers CSV par exemple).
 Cela reste une opération complexe, notamment pour récupérer toutes les informations utiles éparpillées dans plusieurs tables, et les reconstituer ensuite.
 
-La solution proposée ici s'appuie sur l'utilisation d'un format de stockage hiérarchique. Le format JSON a été choisi en raison de sa compacité et de sa facilité d'interfaçage avec les langages actuels de programmation. 
+La solution proposée ici s'appuie sur l'utilisation d'un format de stockage hiérarchique. Le format JSON a été choisi en raison de sa compacité et de sa facilité d'interfaçage avec les langages actuels de programmation.
 Par exemple, dans une gestion commerciale, une *commande* comprend non seulement le récapitulatif de la commande (enregistrement présent dans la table *commande*), mais aussi la référence du client , toutes les lignes correspondant aux produits, chaque ligne contenant elle-même les références des produits et le code de la TVA utilisée, informations stockées dans des tables différentes. Dans le fichier JSON, un enregistrement comprendra toutes ces informations, stockées de manière hiérarchique : chaque item est une vision complète de l'objet métier manipulé.
 Cela implique que certaines données seront redondantes, notamment toutes celles qui sont génériques (tables de paramètres, notamment).
 
 Un fichier JSON contient la description métier des objets (les relations entre les tables). Une fois cette structure décrite, le programme peut extraire les données, puis les reconstituer en réalisant l'opération inverse.
 
 ### Comment cela fonctionne ?
-DBExportModel s'appuie sur une description *métier* du modèle relationnel, en identifiant les relations entre les tables et leur nature. 
+DBExportModel s'appuie sur une description *métier* du modèle relationnel, en identifiant les relations entre les tables et leur nature.
 Pour une même base de données, plusieurs descriptions peuvent être créées, en fonction de ce que l'on veut extraire comme information. Ainsi, la liste des commandes en cours n'aura pas la même structure que la liste des commandes passées par un client.
 Cette description est stockée au format JSON.
 
@@ -36,7 +36,7 @@ Lors de l'importation, les relations entre les tables sont recréées, en foncti
 Selon les paramètres définis, le programme pourra mettre à jour des enregistrements pré-existants, ou bien en créer systématiquement des nouveaux.
 
 ### Limitations
-Le programme a été conçu pour Postgresql. 
+Le programme a été conçu pour Postgresql.
 
 Chaque table doit disposer d'une clé primaire numérique, auto-incrémentée ou non. Quand la clé n'est pas auto-incrémentée, certaines précautions sont à prendre lors de la description du modèle. Le support de clés primaires non numériques sera envisagé dans une version future.
 
@@ -84,7 +84,7 @@ Dans ce cas de figure, la clé primaire de la table ne doit pas être renseigné
 
 #### Configuration des alias
 
-Les alias doivent être positionnés dès lors qu'un risque de relation cyclique puisse s'établir. Cela peut être le cas pour une table qui est enfant par rapport à une table du modèle, et parente par rapport à une autre table. Dans ce cas de figure, une des deux relations doit porter sur un alias. 
+Les alias doivent être positionnés dès lors qu'un risque de relation cyclique puisse s'établir. Cela peut être le cas pour une table qui est enfant par rapport à une table du modèle, et parente par rapport à une autre table. Dans ce cas de figure, une des deux relations doit porter sur un alias.
 
 Un autre cas où l'alias est utile, c'est quand la même table a plusieurs relations vers une autre table, portée par des attributs différents (par exemple, une table de paramètres contient des bornes de valeurs utilisées dans des cas différents, portés par des attributs différents).
 
@@ -106,7 +106,7 @@ Le fichier, au format JSON, comprend un enregistrement dont le nom est le nom de
     * **key** : le nom de la contrainte de clé pour la table considérée
   * **description** : la description littéraire de la table
   * **children** : la liste des tables *enfants*, avec pour chacune :
-    * **tableName** : le nom de la table 
+    * **tableName** : le nom de la table
     * **childKey** : le nom de l'attribut porteur de la relation dans la table enfant (lien vers la clé primaire de la table courante)
  * **parents** : la liste des tables parentes, notamment les tables de paramètres, avec, pour chacune :
      * **tableName** : le nom de la table
@@ -168,7 +168,7 @@ Attention : l'utilisation de cette option peut considérablement augmenter le te
 
 ### Utilisation dans un programme
 
-La plupart des opérations sont réalisées par la classe *ExportModelProcessing*, qui est disponible dans le fichier *lib/exportmodel.class.php*. 
+La plupart des opérations sont réalisées par la classe *ExportModelProcessing*, qui est disponible dans le fichier *lib/exportmodel.class.php*.
 
 La classe s'appuie sur quelques fonctions qui sont déclarées dans le fichier *lib/functions.php*.
 

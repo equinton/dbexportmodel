@@ -11,20 +11,22 @@
  * and specify the list of schemas to analyze, separated by a comma
  */
 
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
+error_reporting(E_ERROR | E_PARSE);
 require_once 'lib/exportmodel.class.php';
 require_once 'lib/message.php';
 require_once 'lib/functions.php';
 
-
+$version = "v1.0.2 - 2020-08-17";
 $paramfile = "param.ini";
 $sectionName = "database";
 
 $message = new Message();
+$isHelp = false;
 try {
   if ($argv[1] == "-h" || $argv[1] == "--help" || count($argv) == 1) {
     $message->set("dbExportModel : exchange data between postgresql databases, with json files");
     $message->set("Licence : MIT. Copyright © 2020 - Éric Quinton");
+    $message->set("Version $version");
     $message->set("Options :");
     $message->set("-h ou --help: this help message");
     $message->set("--export: generate the export of the data");
@@ -40,6 +42,7 @@ try {
     $message->set("--zip: create or use a zip file witch contents structure, description, data and binary files");
     $message->set("--sqlfile:dbcreate.sql name of the file that will contain the database tables generation sql script");
     $message->set("Change params in param.ini to specify the parameters to connect the database, and specify the list of schemas to analyze, separated by a comma");
+    $isHelp = true;
     throw new ExportException();
   } else {
     $dbparam = parse_ini_file($paramfile, true);
@@ -144,10 +147,10 @@ try {
    * Open the structure and the description
    */
 
-  if (!file_exists($root.$descriptionname)) {
+  if (!file_exists($root . $descriptionname)) {
     throw new ExportException("The file $root.$descriptionname don't exists");
   }
-  $fd = file_get_contents($root.$descriptionname);
+  $fd = file_get_contents($root . $descriptionname);
   if (!$fd) {
     throw new ExportException("The file $root.$descriptionname can't be read");
   }
@@ -156,13 +159,13 @@ try {
   }
   $export->initModel(json_decode($fd, true));
   if ($action != "structure") {
-    if (!file_exists($root.$structurename)) {
+    if (!file_exists($root . $structurename)) {
       /**
        * Generate the structure of the database before export
        */
-      file_put_contents($root.$structurename, $export->generateStructure());
+      file_put_contents($root . $structurename, $export->generateStructure());
     } else {
-      $fs = file_get_contents($root.$structurename);
+      $fs = file_get_contents($root . $structurename);
       if (!$fs) {
         throw new ExportException("The file $root.$structurename can't be read");
       }
@@ -267,7 +270,7 @@ try {
         /**
          * Set the binary folder to the class
          */
-        $export->binaryFolder = $root.$binaryfolder;
+        $export->binaryFolder = $root . $binaryfolder;
       }
       /**
        * Treatment of the import
@@ -306,8 +309,10 @@ try {
       throw new ExportException("No action defined. Run with -h option to see the available parameters");
   }
 } catch (ExportException $ee) {
-  $message->set("An error occurred during the treatment");
-  $message->set($ee->getMessage());
+  if (!$isHelp) {
+    $message->set("An error occurred during the treatment");
+    $message->set($ee->getMessage());
+  }
 } catch (Exception $e) {
   $message->set("An unattented error occurred during the treatment");
   $message->set($e->getMessage());

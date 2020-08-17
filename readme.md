@@ -7,17 +7,17 @@ Released with MIT license
 
 Relational databases store information by dividing it into two-dimensional tables. To retrieve this information, relationships are created between the tables, mainly hierarchical relationships (table 2 is dependent on table 1).
 
-Transferring data from one database to another is a complex operation. The simplest, but often not the most suitable solution, is to make a full backup and then restore it afterwards. The other solution is to extract the data from each table into files supporting two dimensions (CSV files for example). 
+Transferring data from one database to another is a complex operation. The simplest, but often not the most suitable solution, is to make a full backup and then restore it afterwards. The other solution is to extract the data from each table into files supporting two dimensions (CSV files for example).
 This remains a complex operation, especially to retrieve all the useful information scattered in several tables, and then to reconstruct them afterwards.
 
-The solution proposed here is based on the use of a hierarchical storage format. The JSON format was chosen because of its compactness and ease of interfacing with current programming languages. 
+The solution proposed here is based on the use of a hierarchical storage format. The JSON format was chosen because of its compactness and ease of interfacing with current programming languages.
 For example, in a commercial management, an *order* will include not only the summary of the order (record present in the *order* table), but also the customer reference,  all the lines corresponding to the products, each line itself containing the product references and the VAT code used, information stored in different tables. In the JSON file, a record contains all these informations. In the JSON file, a record will include all this information, stored in a hierarchical way: each item is a complete view of the business object being manipulated.
 This implies that some data will be redundant, notably all generic data (parameter tables, in particular).
 
 A JSON file contains the business description of the objects (the relationships between the tables). Once this structure has been described, the program can extract the data and then reconstruct it by performing the reverse operation.
 
 ### How does it work?
-DBExportModel is based on a *business* description of the relational model, identifying the relationships between tables and their nature. 
+DBExportModel is based on a *business* description of the relational model, identifying the relationships between tables and their nature.
 For the same database, several descriptions can be created, depending on what you want to extract as information. Thus, the list of open orders will not have the same structure as the list of orders placed by a customer.
 This description is stored in JSON format.
 
@@ -36,7 +36,7 @@ During the import, the relationships between the tables are recreated, according
 Depending on the parameters defined, the program will be able to update pre-existing records, or systematically create new ones.
 
 ### Limitations
-The program was designed for Postgresql. 
+The program was designed for Postgresql.
 
 Each table must have a primary numeric key, auto-incrementing or not. When the key is not auto-incrementing, certain precautions should be taken when describing the model. The support of non-numeric primary keys will be considered in a future version.
 
@@ -83,7 +83,7 @@ In this case, the primary key of the table must not be filled. If a primary key 
 
 #### Alias setup
 
-Aliases must be positioned as soon as a risk of cyclical relationship can be established. This may be the case for a table that is child to one table of the model, and parent to another table. In this case, one of the two relationships must be an alias. 
+Aliases must be positioned as soon as a risk of cyclical relationship can be established. This may be the case for a table that is child to one table of the model, and parent to another table. In this case, one of the two relationships must be an alias.
 
 Another case where the alias is useful is when the same table has several relationships to another table, carried by different attributes (for example, a parameter table contains value bounds used in different cases, carried by different attributes).
 
@@ -105,7 +105,7 @@ The file, in JSON format, contains a record whose name is the name of the table,
     * **key**: the name of the key constraint for the table in question
   * **description**: the literary description of the table
   * **children** : the list of *children* tables, with for each one :
-    * **tableName** : the name of the table 
+    * **tableName** : the name of the table
     * **childKey**: the name of the attribute carrying the relationship in the child table (link to the primary key of the current table)
  * **parents**: the list of parent tables, including parameter tables, with, for each :
      * **tableName** : the name of the table
@@ -167,7 +167,7 @@ Warning: using this option can considerably increase the processing time, especi
 
 ### Use in a program
 
-Most of the operations are performed by the *ExportModelProcessing* class, which is available in the *lib/exportmodel.class.php* file. 
+Most of the operations are performed by the *ExportModelProcessing* class, which is available in the *lib/exportmodel.class.php* file.
 
 The class relies on a few functions that are declared in the *lib/functions.php* file.
 
