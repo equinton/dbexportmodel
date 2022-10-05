@@ -174,6 +174,7 @@ class ExportModelProcessing
                 (SELECT col_description(pg_attribute.attrelid,pg_attribute.attnum)) AS COMMENT,
                 CASE pg_attribute.attnotnull WHEN FALSE THEN 0 ELSE 1 END AS notnull,
                 pg_constraint.conname AS key
+                ,pg_get_serial_sequence(schemaname||'.'||pg_tables.tablename::text, pg_attribute.attname::text) as serial_sequence
                 FROM pg_tables
                 JOIN pg_namespace ON (pg_namespace.nspname = pg_tables.schemaname)
                 JOIN pg_class
@@ -628,7 +629,7 @@ class ExportModelProcessing
     }
     $this->db->commit();
   }
-  
+
   /**
    * Import data from a table
    *
@@ -1004,5 +1005,5 @@ class ExportModelProcessing
     }
     return $newKey;
   }
- 
+
 }
