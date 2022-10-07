@@ -11,82 +11,120 @@ function patternForm(id, dataId, data = "") {
         "view": "bootstrap-edit-horizontal",
         "schema": {
             "title":"Model description",
-            "type": "array",
-            "items": {
-                "title":"Description of a table",
-                "type": "object",
-                "properties": {
-                    "tableName": {
-                        "title": "Name of the table",
-                        "type": "string",
-                        "required": true
-                    },
-                    "tableAlias": {
-                        "title": "Alias of the table",
-                        "type": "string",
-                        "required": true
-                    },
-                    "technicalKey": {
-                        "title": "Primary key",
-                        "type": "string"
-                    },
-                    "businessKeys": {
-                        "title": "Business key",
-                        "type": "array",
-                        "toolbarSticky": true,
-                        "items": {
-                            "title": "Name of the column",
-                            "type": "string",
-                        }
-                    },
-                    "parentKeys": {
-                        "title": "Parent keys",
-                        "type": "array",
-                        "toolbarSticky": true,
-                        "items":{
-                            "title":"Name of the column",
-                            "type":"string"
-                        }
-                    },
-                    "children": {
-                        "toolbarSticky": true,
-                        "title": "List of alias of related tables",
-                        "type": "array",
-                        "items" : {
-                            "title": "Name of the related alias",
-                            "type": "string"
-                        }
-                    },
-                    "parents": {
-                        "title":"Liste of parents alias",
-                        "type":"array",
-                        "items": {
-                            "type":"object",
-                            "properties": {
-                                "aliasName": {
-                                    "title": "Table alias",
-                                    "type": "string"
-                                },
-                                "foreignKeys":{
-                                    "title": "List of columns used to rely to the parent",
-                                    "type":"array",
-                                    "items": {
-                                        "title":"Name of the column into the current table",
-                                        "type":"string"
+            "type":"object",
+            "properties": {
+                "version": {
+                    "title":"Version of the pattern",
+                    "type":"string",
+                    "default":"v2.0",
+                    "readonly":true
+                },
+                "databaseType": {
+                    "title":"Type of database",
+                    "type":"string",
+                    "enum":["postgresql","mysql"],
+                    "default":"postgresql",
+                    "required":true
+                },
+                "aliases" :{
+                    "type": "array",
+                    "title":"List of alias tables",
+                    "items": {
+                        "title":"Description of a table",
+                        "type": "object",
+                        "properties": {
+                            "tableName": {
+                                "title": "Name of the table",
+                                "type": "string",
+                                "required": true
+                            },
+                            "tableAlias": {
+                                "title": "Alias of the table",
+                                "type": "string",
+                                "required": true
+                            },
+                            "schemaName": {
+                                "title": "Name of the schema where the table is",
+                                "type": "string",
+                            },
+                            "primaryKeys": {
+                                "title": "Primary keys",
+                                "type": "array",
+                                "items": {
+                                    "title": "Name of the primary key column",
+                                    "type":"string"
+                                }
+                            },
+                            "businessKeys": {
+                                "title": "Business key",
+                                "type": "array",
+                                "toolbarSticky": true,
+                                "items": {
+                                    "title": "Name of the identifying column",
+                                    "type": "string",
+                                }
+                            },
+                            "parentKeys": {
+                                "title": "Parent keys",
+                                "type": "array",
+                                "toolbarSticky": true,
+                                "items":{
+                                    "title":"Name of the columnn that contains the relationship",
+                                    "type":"string"
+                                }
+                            },
+                            "children": {
+                                "toolbarSticky": true,
+                                "title": "List of alias of related tables",
+                                "type": "array",
+                                "items" : {
+                                    "type":"object",
+                                    "properties": {
+                                        "aliasName": {
+                                            "title":"Child table alias",
+                                            "type":"string"
+                                        },
+                                        "foreignKeys" : {
+                                            "title":"List of foreign keys",
+                                            "type":"array",
+                                            "items": {
+                                                "title":"Name of the foreign key",
+                                                "type":"string"
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                            },
+                            "parents": {
+                                "title":"Liste of parents alias",
+                                "type":"array",
+                                "items": {
+                                    "type":"object",
+                                    "properties": {
+                                        "aliasName": {
+                                            "title": "Table alias",
+                                            "type": "string"
+                                        },
+                                        "foreignKeys":{
+                                            "title": "List of foreign keys",
+                                            "type":"array",
+                                            "items": {
+                                                "title":"Name of foreign key",
+                                                "type":"string"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
                         }
-                    },
-                    "recursiveField": {
-                        "title":"Name of the column used to link to the parent record, in the same table",
-                        "type":"string"
                     }
                 }
             }
         },
         "options": {
+            "databaseType": {
 
+            }
         },
         "postRender": function (control) {
             var value = control.getValue();
