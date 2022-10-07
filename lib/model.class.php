@@ -29,6 +29,10 @@ class Model
     }
   }
 
+  public function getDatabasetype():string {
+    return $this->data["databaseType"];
+  }
+
   function verify(): bool
   {
     $ok = true;
